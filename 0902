@@ -1,553 +1,68 @@
-using System;
-using System.Drawing;
-using System.Windows.Forms;
+好的！讓我們重新開始，我會用更簡單清楚的方式指導您：
 
-namespace HIPOSFileComparer
-{
-public partial class Form1 : Form
-{
-public Form1()
-{
-InitializeComponent();
-}
+## 重新開始的步驟：
 
-```
-    private void Form1_Load(object sender, EventArgs e)
-    {
-        // 設定表單屬性
-        this.Text = "HIPOS 檔案比對工具";
-        this.Size = new Size(900, 600);
-        this.StartPosition = FormStartPosition.CenterScreen;
+### 步驟 1: 清空 Form
 
-        // 設定各區域
-        SetupTitleArea();
-        InitializeTableLayout();
-        CreateTableHeaders();
-        CreateFixedPrograms();
-        SetupButtonArea();
-        SetupNoticeArea();
-    }
+1. **開啟 Form1.cs (Design)**
+1. **選取所有控制項** (Ctrl+A)
+1. **刪除** (Delete 鍵)
+1. 現在應該是空白的 Form
 
-    private void SetupTitleArea()
-    {
-        // 設定黃色標題區域
-        panel1.BackColor = Color.Gold;
-        panel1.Height = 50;
-        panel1.Dock = DockStyle.Top;
+### 步驟 2: 按順序加入控制項
 
-        // 設定主標題
-        label1.Text = "SC 內 HIPOS 相關檔案比對";
-        label1.Font = new Font("Microsoft JhengHei", 14, FontStyle.Bold);
-        label1.TextAlign = ContentAlignment.MiddleCenter;
-        label1.Dock = DockStyle.Fill;
-        label1.BackColor = Color.Transparent;
-    }
+**第一步：上方標題區**
 
-    private void InitializeTableLayout()
-    {
-        // 設定表格基本屬性
-        tableLayoutPanel1.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
-        tableLayoutPanel1.ColumnCount = 6;
-        tableLayoutPanel1.RowCount = 5;
-        tableLayoutPanel1.Dock = DockStyle.Fill;
+1. 從工具箱拖拉 **Panel** 到 Form 上方
+1. 設定 Panel 屬性：
+- `Name = panelTitle`
+- `Dock = Top`
+- `Height = 60`
+- `BackColor = DarkBlue` (藍色系)
 
-        // 清除預設設定
-        tableLayoutPanel1.Controls.Clear();
-        tableLayoutPanel1.ColumnStyles.Clear();
-        tableLayoutPanel1.RowStyles.Clear();
+**第二步：標題文字**
 
-        // 設定欄位寬度比例
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 程式名稱
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 總部日期
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 總部大小
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 門市日期
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 門市大小
-        tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 比對結果
+1. 從工具箱拖拉 **Label** **到 panelTitle 裡面**
+1. 設定 Label 屬性：
+- `Name = labelTitle`
+- `Text = SC 內 HIPOS 相關檔案比對`
+- `Dock = Fill`
+- `TextAlign = MiddleCenter`
+- `ForeColor = White`
 
-        // 設定列高度
-        tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F)); // 版本標題列
-        tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F)); // 欄位標題列
-        tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F)); // SC.Service
-        tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F)); // SC.Web
-        tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F)); // SC.Update
-    }
+**第三步：中間表格區**
 
-    private void CreateTableHeaders()
-    {
-        // 第一行：總部版本 / 門市版本 (綠色區域)
-        var headerPanel1 = CreateHeaderPanel("總部版本", Color.LightGreen);
-        tableLayoutPanel1.Controls.Add(headerPanel1, 1, 0);
-        tableLayoutPanel1.SetColumnSpan(headerPanel1, 2); // 跨2欄
+1. 從工具箱拖拉 **TableLayoutPanel** 到 Form 中間
+1. 設定屬性：
+- `Name = tableMain`
+- `Dock = Fill`
 
-        var headerPanel2 = CreateHeaderPanel("門市版本", Color.LightGreen);
-        tableLayoutPanel1.Controls.Add(headerPanel2, 3, 0);
-        tableLayoutPanel1.SetColumnSpan(headerPanel2, 2); // 跨2欄
+**第四步：底部按鈕區**
 
-        // 第二行：欄位標題 (黃色區域)
-        AddHeaderCell("程式名稱", 0, 1, Color.Khaki);
-        AddHeaderCell("檔案日期", 1, 1, Color.Khaki);
-        AddHeaderCell("檔案大小", 2, 1, Color.Khaki);
-        AddHeaderCell("檔案日期", 3, 1, Color.Khaki);
-        AddHeaderCell("檔案大小", 4, 1, Color.Khaki);
-        AddHeaderCell("比對結果", 5, 1, Color.Khaki);
-    }
+1. 從工具箱拖拉 **Panel** 到 Form 底部
+1. 設定屬性：
+- `Name = panelButtons`
+- `Dock = Bottom`
+- `Height = 80`
 
-    private Panel CreateHeaderPanel(string text, Color backColor)
-    {
-        var panel = new Panel
-        {
-            BackColor = backColor,
-            Margin = new Padding(0)
-        };
+**第五步：說明區**
 
-        var label = new Label
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
-            BackColor = Color.Transparent
-        };
+1. 從工具箱拖拉 **Panel** 到 Form 最底部
+1. 設定屬性：
+- `Name = panelNotice`
+- `Dock = Bottom`
+- `Height = 120`
+- `BackColor = LightBlue` (藍色系)
 
-        panel.Controls.Add(label);
-        return panel;
-    }
+### 步驟 3: 確認控制項順序
 
-    private void AddHeaderCell(string text, int column, int row, Color backColor)
-    {
-        var panel = new Panel
-        {
-            BackColor = backColor,
-            Margin = new Padding(0)
-        };
+在設計器中，從上到下應該看到：
 
-        var label = new Label
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Microsoft JhengHei", 9, FontStyle.Bold),
-            BackColor = Color.Transparent
-        };
+1. panelTitle (藍色)
+1. tableMain (中間空白)
+1. panelButtons (底部)
+1. panelNotice (淺藍色)
 
-        panel.Controls.Add(label);
-        tableLayoutPanel1.Controls.Add(panel, column, row);
-    }
+您先按照這個順序建立基本架構，確認位置都正確後，我再提供下一步的程式碼！
 
-    private void CreateFixedPrograms()
-    {
-        // 固定的三個程式
-        string[] programs = { "SC.Service", "SC.Web", "SC.Update" };
-
-        for (int i = 0; i < programs.Length; i++)
-        {
-            int rowIndex = i + 2; // 從第3行開始
-
-            // 程式名稱 (藍色)
-            AddProgramCell(programs[i], 0, rowIndex, Color.SteelBlue, Color.White);
-
-            // 其他欄位 (淺灰色)
-            AddDataCell("2025/7/24 下午 03:26:44", 1, rowIndex); // 總部日期
-            AddDataCell("72192", 2, rowIndex); // 總部大小
-            AddDataCell("2025/7/24 下午 03:26:44", 3, rowIndex); // 門市日期
-            AddDataCell("72192", 4, rowIndex); // 門市大小
-            
-            // 比對結果 (紅色不正確)
-            if (i < 2) // SC.Service 和 SC.Web 顯示不正確
-            {
-                AddResultCell("不正確", 5, rowIndex, Color.Red);
-            }
-            else // SC.Update 顯示正確
-            {
-                AddResultCell("正確", 5, rowIndex, Color.Green);
-            }
-        }
-    }
-
-    private void AddProgramCell(string text, int column, int row, Color backColor, Color foreColor)
-    {
-        var panel = new Panel
-        {
-            BackColor = backColor,
-            Margin = new Padding(0)
-        };
-
-        var label = new Label
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = new Font("Microsoft JhengHei", 9, FontStyle.Bold),
-            ForeColor = foreColor,
-            BackColor = Color.Transparent,
-            Padding = new Padding(5, 0, 0, 0)
-        };
-
-        panel.Controls.Add(label);
-        tableLayoutPanel1.Controls.Add(panel, column, row);
-    }
-
-    private void AddDataCell(string text, int column, int row)
-    {
-        var panel = new Panel
-        {
-            BackColor = Color.LightGray,
-            Margin = new Padding(0)
-        };
-
-        var label = new Label
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Microsoft JhengHei", 9),
-            BackColor = Color.Transparent
-        };
-
-        panel.Controls.Add(label);
-        tableLayoutPanel1.Controls.Add(panel, column, row);
-    }
-
-    private void AddResultCell(string text, int column, int row, Color foreColor)
-    {
-        var panel = new Panel
-        {
-            BackColor = Color.LightGray,
-            Margin = new Padding(0)
-        };
-
-        var label = new Label
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Microsoft JhengHei", 9, FontStyle.Bold),
-            ForeColor = foreColor,
-            BackColor = Color.Transparent
-        };
-
-        panel.Controls.Add(label);
-        tableLayoutPanel1.Controls.Add(panel, column, row);
-    }
-
-    private void SetupButtonArea()
-    {
-        // 設定按鈕文字
-        button1.Text = "1.版本比對";
-        button2.Text = "2.接收 HIPOS 最新版本與更新";
-        button3.Text = "3.清除設定檔資料";
-
-        // 設定按鈕字體
-        Font buttonFont = new Font("Microsoft JhengHei", 10);
-        button1.Font = buttonFont;
-        button2.Font = buttonFont;
-        button3.Font = buttonFont;
-    }
-
-    private void SetupNoticeArea()
-    {
-        // 設定橘色說明區域
-        panel2.BackColor = Color.Orange; // 假設 panel2 是橘色區域
-        panel2.Height = 120;
-        panel2.Dock = DockStyle.Bottom;
-
-        // 設定說明文字
-        richTextBox1.BackColor = Color.Orange;
-        richTextBox1.BorderStyle = BorderStyle.None;
-        richTextBox1.ReadOnly = true;
-        richTextBox1.Dock = DockStyle.Fill;
-        richTextBox1.Font = new Font("Microsoft JhengHei", 10);
-        richTextBox1.Text = "操作說明：\n" +
-                           "步驟1. 執行版本比對\n" +
-                           "步驟2. 確認比對結果\n" +
-                           "● 比對結果正確執行3.清除設定檔資料\n" +
-                           "● 比對結果有不正確執行2. 接收HIPOS最新版本與更新，待更新完畢後，再從步驟1重新執行，直至比對結果正確";
-    }
-
-    // 按鈕事件處理
-    private void button1_Click(object sender, EventArgs e)
-    {
-        // 版本比對功能
-        MessageBox.Show("執行版本比對...");
-    }
-
-    private void button2_Click(object sender, EventArgs e)
-    {
-        // 接收更新功能
-        MessageBox.Show("接收 HIPOS 最新版本...");
-    }
-
-    private void button3_Click(object sender, EventArgs e)
-    {
-        // 清除設定檔功能
-        MessageBox.Show("清除設定檔資料...");
-    }
-}
-```
-
-}
-
-好的！我來幫您設計跟圖片一模一樣的畫面。讓我詳細說明如何建立：
-
-## 畫面結構
-
-### 1. 主標題區域 (黄色)
-
-```csharp
-// 黃色 Panel
-panel1.BackColor = Color.Gold;
-panel1.Height = 50;
-panel1.Dock = DockStyle.Top;
-
-// 主標題 Label
-labelTitle.Text = "SC 內 HIPOS 相關檔案比對";
-labelTitle.Font = new Font("Microsoft JhengHei", 14, FontStyle.Bold);
-labelTitle.TextAlign = ContentAlignment.MiddleCenter;
-labelTitle.Dock = DockStyle.Fill;
-```
-
-### 2. 中間比對表格區域
-
-使用 **TableLayoutPanel** 來建立表格：
-
-```csharp
-// TableLayoutPanel 設定
-tableLayoutPanel1.ColumnCount = 6;
-tableLayoutPanel1.RowCount = 4;  // 標題行 + 3個程式行
-
-// 設定欄位比例
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 程式名稱
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 總部檔案日期
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 總部檔案大小
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 門市檔案日期
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 門市檔案大小
-tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 比對結果
-```
-
-### 3. 建立表格內容
-
-在 Form_Load 事件中加入：
-
-```csharp
-private void Form1_Load(object sender, EventArgs e)
-{
-    CreateTableHeaders();
-    CreateFixedPrograms();
-}
-
-private void CreateTableHeaders()
-{
-    // 第一行標題 (綠色區域)
-    var headerPanel1 = new Panel { BackColor = Color.LightGreen };
-    var headerLabel1 = new Label 
-    { 
-        Text = "總部版本", 
-        Dock = DockStyle.Fill, 
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold)
-    };
-    headerPanel1.Controls.Add(headerLabel1);
-    tableLayoutPanel1.Controls.Add(headerPanel1, 1, 0);
-    tableLayoutPanel1.SetColumnSpan(headerPanel1, 2); // 跨兩欄
-    
-    var headerPanel2 = new Panel { BackColor = Color.LightGreen };
-    var headerLabel2 = new Label 
-    { 
-        Text = "門市版本", 
-        Dock = DockStyle.Fill, 
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold)
-    };
-    headerPanel2.Controls.Add(headerLabel2);
-    tableLayoutPanel1.Controls.Add(headerPanel2, 3, 0);
-    tableLayoutPanel1.SetColumnSpan(headerPanel2, 2); // 跨兩欄
-
-    // 第二行子標題 (黃色區域)
-    AddHeaderCell("程式名稱", 0, 1, Color.Khaki);
-    AddHeaderCell("檔案日期", 1, 1, Color.Khaki);
-    AddHeaderCell("檔案大小", 2, 1, Color.Khaki);
-    AddHeaderCell("檔案日期", 3, 1, Color.Khaki);
-    AddHeaderCell("檔案大小", 4, 1, Color.Khaki);
-    AddHeaderCell("比對結果", 5, 1, Color.Khaki);
-}
-
-private void AddHeaderCell(string text, int column, int row, Color backColor)
-{
-    var panel = new Panel { BackColor = backColor };
-    var label = new Label 
-    { 
-        Text = text, 
-        Dock = DockStyle.Fill, 
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font("Microsoft JhengHei", 9, FontStyle.Bold)
-    };
-    panel.Controls.Add(label);
-    tableLayoutPanel1.Controls.Add(panel, column, row);
-}
-
-private void CreateFixedPrograms()
-{
-    // 固定的三個程式
-    string[] programs = { "SC.Service", "SC.Web", "SC.Update" };
-    
-    for (int i = 0; i < programs.Length; i++)
-    {
-        int rowIndex = i + 2; // 從第3行開始
-        
-        // 程式名稱 (藍色)
-        AddProgramCell(programs[i], 0, rowIndex, Color.SteelBlue, Color.White);
-        
-        // 其他欄位 (灰色)
-        AddDataCell("", 1, rowIndex); // 總部日期
-        AddDataCell("", 2, rowIndex); // 總部大小
-        AddDataCell("", 3, rowIndex); // 門市日期
-        AddDataCell("", 4, rowIndex); // 門市大小
-        AddDataCell("", 5, rowIndex); // 比對結果
-    }
-}
-
-private void AddProgramCell(string text, int column, int row, Color backColor, Color foreColor)
-{
-    var panel = new Panel { BackColor = backColor };
-    var label = new Label 
-    { 
-        Text = text, 
-        Dock = DockStyle.Fill, 
-        TextAlign = ContentAlignment.MiddleLeft,
-        Font = new Font("Microsoft JhengHei", 9),
-        ForeColor = foreColor,
-        Padding = new Padding(5, 0, 0, 0)
-    };
-    panel.Controls.Add(label);
-    tableLayoutPanel1.Controls.Add(panel, column, row);
-}
-
-private void AddDataCell(string text, int column, int row)
-{
-    var panel = new Panel { BackColor = Color.LightGray };
-    var label = new Label 
-    { 
-        Text = text, 
-        Dock = DockStyle.Fill, 
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font("Microsoft JhengHei", 9)
-    };
-    panel.Controls.Add(label);
-    tableLayoutPanel1.Controls.Add(panel, column, row);
-}
-```
-
-### 4. 底部功能按鈕和說明區域
-
-```csharp
-// 三個功能按鈕
-button1.Text = "1.版本比對";
-button2.Text = "2.接收 HIPOS 最新版本與更新";
-button3.Text = "3.清除設定檔資料";
-
-// 橘色說明區域
-panelNotice.BackColor = Color.Orange;
-richTextBoxNotice.Text = "操作說明：\n步驟1. 執行版本比對\n步驟2. 確認比對結果\n● 比對結果正確執行3.清除設定檔資料\n● 比對結果有不正確執行2. 接收HIPOS最新版本與更新，待更新完畢後，再從步驟1重新執行，直至比對結果正確";
-```
-
-這樣就能建立跟圖片完全一樣的畫面了！需要我提供完整的 Form 設計器程式碼嗎？​​​​​​​​​​​​​​​​
-
-讓我詳細說明如何設定 TableLayoutPanel：
-
-## 步驟 1: 在設計器中加入 TableLayoutPanel
-
-1. **從工具箱拖拉 TableLayoutPanel** 到 Form 中間區域
-1. **設定基本屬性：**
-   
-   ```
-   Dock = Fill (或放在合適位置)
-   ```
-
-## 步驟 2: 在 Properties 視窗設定行列
-
-### 設定欄位 (Columns)：
-
-1. **選中 TableLayoutPanel**
-1. **在 Properties 找到 `Columns` 屬性**
-1. **點擊 `Columns` 右邊的 “…” 按鈕**
-1. **在對話框中設定 6 個欄位：**
-
-```
-欄位 0: Percent, 15%  (程式名稱)
-欄位 1: Percent, 20%  (總部檔案日期)  
-欄位 2: Percent, 10%  (總部檔案大小)
-欄位 3: Percent, 20%  (門市檔案日期)
-欄位 4: Percent, 10%  (門市檔案大小)
-欄位 5: Percent, 15%  (比對結果)
-```
-
-### 設定列 (Rows)：
-
-1. **在 Properties 找到 `Rows` 屬性**
-1. **點擊 `Rows` 右邊的 “…” 按鈕**
-1. **設定 5 個列：**
-
-```
-列 0: AutoSize (總部版本/門市版本 標題)
-列 1: AutoSize (欄位名稱標題)
-列 2: AutoSize (SC.Service)
-列 3: AutoSize (SC.Web)
-列 4: AutoSize (SC.Update)
-```
-
-## 步驟 3: 程式碼中的詳細設定
-
-```csharp
-private void InitializeTableLayout()
-{
-    // 設定基本屬性
-    tableLayoutPanel1.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
-    tableLayoutPanel1.ColumnCount = 6;
-    tableLayoutPanel1.RowCount = 5;
-    
-    // 清除預設的欄位和列設定
-    tableLayoutPanel1.ColumnStyles.Clear();
-    tableLayoutPanel1.RowStyles.Clear();
-    
-    // 設定欄位寬度比例
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 程式名稱
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 總部日期
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 總部大小
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // 門市日期
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F)); // 門市大小
-    tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F)); // 比對結果
-    
-    // 設定列高度
-    tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 第0列
-    tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 第1列
-    tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 第2列
-    tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 第3列
-    tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 第4列
-}
-```
-
-## 步驟 4: 在 Form_Load 中呼叫
-
-```csharp
-private void Form1_Load(object sender, EventArgs e)
-{
-    InitializeTableLayout();  // 先設定表格結構
-    CreateTableHeaders();     // 建立表頭
-    CreateFixedPrograms();    // 建立程式列表
-}
-```
-
-## 視覺化設定方式（推薦給初學者）：
-
-1. **選中 TableLayoutPanel**
-1. **右上角會出現小箭頭** → 點擊它
-1. **選擇 “Edit Rows and Columns”**
-1. **在對話框中：**
-- **Column** 頁籤：設定 6 個欄位，每個設定 Percent 和百分比
-- **Row** 頁籤：設定 5 個列，每個設定 AutoSize
-
-## 驗證設定：
-
-設定完成後，TableLayoutPanel 應該顯示 6×5 的格子網格，您就可以在每個格子中放入 Panel 和 Label 了。
-
-需要我錄製一個設定過程的截圖說明嗎？​​​​​​​​​​​​​​​​
+建立好了嗎？有什麼問題嗎？​​​​​​​​​​​​​​​​
