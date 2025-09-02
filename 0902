@@ -1,4 +1,74 @@
-  
+  橘色區域要放注意事項，可以用以下幾種方式：
+
+## 推薦方式：使用 RichTextBox
+
+### 步驟：
+
+1. **在橘色 Panel 內放入 RichTextBox**
+1. **設定 RichTextBox 屬性：**
+   
+   ```csharp
+   richTextBox1.Dock = DockStyle.Fill;  // 填滿整個橘色Panel
+   richTextBox1.BackColor = Color.Orange;  // 背景色橘色
+   richTextBox1.BorderStyle = BorderStyle.None;  // 無邊框
+   richTextBox1.ReadOnly = true;  // 只讀，不能編輯
+   richTextBox1.Font = new Font("Microsoft JhengHei", 10);  // 設定字體
+   ```
+
+### 在 Form_Load 事件中設定注意事項內容：
+
+```csharp
+private void Form1_Load(object sender, EventArgs e)
+{
+    SetupNotices();  // 設定注意事項
+}
+
+private void SetupNotices()
+{
+    richTextBox1.Text = "操作說明：\n" +
+                       "步驟1. 執行版本比對\n" +
+                       "步驟2. 確認比對結果\n" +
+                       "● 比對結果正確執行3.清除設定檔資料\n" +
+                       "● 比對結果有不正確執行2. 接收HIPOS最新版本與更新，待更新完畢後，再從步驟1重新執行，直至比對結果正確";
+}
+```
+
+## 替代方式：使用 Label（多行文字）
+
+```csharp
+label2.AutoSize = false;  // 關閉自動調整大小
+label2.Dock = DockStyle.Fill;  // 填滿Panel
+label2.BackColor = Color.Orange;  // 橘色背景
+label2.TextAlign = ContentAlignment.TopLeft;  // 文字靠左上對齊
+label2.Padding = new Padding(10);  // 內邊距
+label2.Text = "操作說明：\n步驟1. 執行版本比對\n步驟2. 確認比對結果\n...";
+```
+
+## 在設計時期直接編輯文字：
+
+1. **選中 RichTextBox**
+1. **找到 Text 屬性**
+1. **點擊 Text 屬性右邊的 “…” 按鈕**
+1. **在文字編輯器中輸入多行文字**
+
+## 讓文字更美觀的設定：
+
+```csharp
+// 設定行距和格式
+richTextBox1.SelectionIndent = 10;  // 縮排
+richTextBox1.SelectionHangingIndent = 10;  // 懸掛縮排
+```
+
+**推薦使用 RichTextBox**，因為它：
+
+- 支援多行文字
+- 可以設定不同字體和顏色
+- 可以加粗重點文字
+- 支援項目符號
+
+您想要哪種方式？我可以提供更詳細的設定步驟。​​​​​​​​​​​​​​​​
+
+
 我來教您如何在 Visual Studio 中建立這個 WinForms 畫面：
 
 ## 步驟 1: 建立新專案
