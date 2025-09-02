@@ -1,1 +1,88 @@
   
+我來教您如何在 Visual Studio 中建立這個 WinForms 畫面：
+
+## 步驟 1: 建立新專案
+
+1. 開啟 Visual Studio
+1. 選擇 **File** → **New** → **Project**
+1. 選擇 **Windows Forms App (.NET Framework)**
+1. 設定專案名稱，例如：`HIPOSFileComparer`
+1. 選擇 **.NET Framework 4.7.2** 或更高版本
+1. 點擊 **Create**
+
+## 步驟 2: 設計表單
+
+### 設定主表單屬性：
+
+```csharp
+// Form1 屬性設定
+Text = "HIPOS 檔案比對工具"
+Size = 800, 600
+StartPosition = CenterScreen
+```
+
+### 加入控制項（按順序）：
+
+**1. 主標題 Panel**
+
+- 從工具箱拖拉 `Panel` 到表單上方
+- 設定 `BackColor = Gold`
+- `Dock = Top`
+- `Height = 50`
+
+**2. 主標題 Label**
+
+- 在 Panel 內放入 `Label`
+- `Text = "SC 內 HIPOS 相關檔案比對"`
+- `Font = Microsoft JhengHei, 16pt, Bold`
+- `TextAlign = MiddleCenter`
+- `Dock = Fill`
+
+**3. 中間內容 Panel**
+
+- 加入另一個 `Panel`
+- `Dock = Fill`
+
+**4. 檔案比對結果區域**
+在中間 Panel 內加入：
+
+- `GroupBox` (Text = “檔案比對結果”)
+- 在 GroupBox 內放入 `DataGridView`
+- 設定 DataGridView 的欄位
+
+**5. 功能按鈕**
+加入三個 `Button`：
+
+- Button1: `Text = "1.版本比對"`
+- Button2: `Text = "2.接收 HIPOS 最新版本與更新"`
+- Button3: `Text = "3.清除設定檔資料"`
+
+**6. 操作說明區域**
+
+- 底部 `Panel` (`BackColor = Orange`, `Dock = Bottom`, `Height = 100`)
+- 內含 `RichTextBox` 顯示操作說明
+
+## 步驟 3: 設定 DataGridView
+
+```csharp
+// 在 Form1.cs 的 Form1_Load 事件中加入
+private void Form1_Load(object sender, EventArgs e)
+{
+    SetupDataGridView();
+}
+
+private void SetupDataGridView()
+{
+    dataGridView1.Columns.Add("ProgramName", "程式名稱");
+    dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
+    dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
+    dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
+    dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
+    dataGridView1.Columns.Add("Result", "比對結果");
+    
+    // 設定欄位寬度
+    dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+}
+```
+
+需要我提供完整的程式碼範例，還是您想先試著按照這些步驟建立看看？​​​​​​​​​​​​​​​​
