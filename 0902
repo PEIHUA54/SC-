@@ -30,6 +30,9 @@ private bool useTestPath = true;
     private string prodUpdatePath = @"e:\TC_SC\App\SC.Update\SC.Update.exe";                    // 正式門市 Update 檔案路徑
     private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";                                // 正式門市 Web 檔案路徑
     private string prodBatPath = @"E:\BAT\接收收銀機最新版本與更新.bat";                          // 正式更新用批次檔路徑
+
+    // UI 控制項 - 比對時間顯示標籤
+    private Label labelCompareTime;
     #endregion
 
     #region 檔案資訊類別
@@ -41,6 +44,34 @@ private bool useTestPath = true;
         public string Name { get; set; }        // 檔案名稱
         public DateTime ModifyTime { get; set; } // 檔案修改時間
         public long FileSize { get; set; }       // 檔案大小
+    }
+
+    /// <summary>
+    /// 建立比對時間顯示標籤 - 顯示在 DataGridView 下方
+    /// </summary>
+    private void CreateCompareTimeLabel()
+    {
+        try
+        {
+            // 建立顯示比對時間的 Label
+            labelCompareTime = new Label();
+            labelCompareTime.Name = "labelCompareTime";
+            labelCompareTime.Text = "比對結果時間：尚未執行比對";
+            labelCompareTime.Font = new Font("Microsoft JhengHei", 10, FontStyle.Regular);
+            labelCompareTime.ForeColor = Color.DarkBlue;
+            labelCompareTime.AutoSize = true;
+            
+            // 設定位置 - 在 DataGridView 下方
+            labelCompareTime.Location = new Point(dataGridView1.Location.X, 
+                dataGridView1.Location.Y + dataGridView1.Height + 10);
+            
+            // 加入到 Form 中
+            this.Controls.Add(labelCompareTime);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("建立比對時間標籤時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
     #endregion
 
@@ -60,6 +91,7 @@ private bool useTestPath = true;
     {
         SetupDataGridView();     // 初始化資料表格
         InitializeButtons();     // 初始化按鈕狀態
+        CreateCompareTimeLabel(); // 建立比對時間顯示標籤
     }
     #endregion
 
@@ -176,6 +208,9 @@ private bool useTestPath = true;
             // 根據比對結果啟用相對應按鈕
             UpdateButtonStates(allCorrect);
 
+            // 更新比對時間顯示
+            labelCompareTime.Text = "比對結果時間：" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+
             MessageBox.Show("版本比對完成！", "比對結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -220,11 +255,11 @@ private bool useTestPath = true;
             Process process = Process.Start(startInfo);
             process.WaitForExit(); // 等待批次檔執行完成
 
-            MessageBox.Show("HIPOS 更新執行完成！\n即將重新進行版本比對...", "更新完成", 
+            MessageBox.Show("HIPOS 更新執行完成！\n請手動執行版本比對確認結果。", "更新完成", 
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            // 更新完成後自動重新比對
-            button1_Click(sender, e);
+            // 移除自動重新比對，讓使用者自行決定何時比對
+            // button1_Click(sender, e);
         }
         catch (Exception ex)
         {
@@ -264,49 +299,52 @@ private bool useTestPath = true;
     }
     #endregion
 
-    #region 資料庫操作 - 參考前輩寫法
+    #region 資料庫操作 - 參考前輩寫法，連接測試環境
     /// <summary>
-    /// 開啟 SC 資料庫連線 - 參考前輩的 OpenScSqlConnection 方法
+    /// 開啟測試環境資料庫連線 - 參考前輩的 OpenSqlConnectionLocalhost 方法
+    /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
     /// </summary>
     /// <param name="connection">SQL 連線物件</param>
-    private static void OpenScSqlConnection(SqlConnection connection)
+    private static void OpenSqlConnectionTest(SqlConnection connection)
     {
-        string connectionString = GetScConnectionString();
+        string connectionString = GetConnectionStringTest();
         connection.ConnectionString = connectionString;
         connection.Open();
     }
 
     /// <summary>
-    /// 取得 SC 資料庫連線字串 - 參考前輩的 GetScConnectionString 方法
+    /// 取得測試環境資料庫連線字串 - 參考前輩的 GetConnectionStringLocal 方法
+    /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
     /// </summary>
-    /// <returns>資料庫連線字串</returns>
-    static private string GetScConnectionString()
+    /// <returns>測試環境資料庫連線字串</returns>
+    static private string GetConnectionStringTest()
     {
-        // 請依實際環境修改資料庫連線資訊
-        return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582;Max Pool Size = 1000;Connection Timeout=1000";
+        // 測試環境：hilife-tfs 伺服器，HI_TMMAIN 資料庫
+        return "Data Source=hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=sa;Password=23285582";
     }
 
     /// <summary>
-    /// 執行 SQL 刪除操作 - 參考前輩使用 SqlDataAdapter 的寫法
+    /// 執行 SQL 刪除操作 - 完全參考前輩的寫法
+    /// 刪除測試環境 HI_TMMAIN 資料庫中的 FileModList 資料表內容
     /// </summary>
     private void ExecuteDeleteSQL()
     {
         try
         {
-            string SQL = "";
-            SQL = " DELETE FROM [FileModList] "; // 刪除檔案修改清單
-
+            // 建立 SQL 連線物件
             SqlConnection sConn = new SqlConnection();
-            OpenScSqlConnection(sConn);  // 開啟 SC 資料庫連線
-
+            OpenSqlConnectionTest(sConn);  // 開啟測試環境資料庫連線
+            
+            // 建立資料表物件
+            DataTable dt = new DataTable();
+            
+            // SQL 刪除語句 - 刪除 FileModList 資料表所有資料
+            string sql = "DELETE FROM FileModList";
+            
             // 使用 SqlDataAdapter 執行 SQL - 參考前輩的寫法
-            SqlCommand sSQL_Comm = new SqlCommand(SQL);
-            SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
-            sSQL_Comm = new SqlCommand(SQL);
-            Tb = new SqlDataAdapter(SQL, sConn);
-            DataTable dtTmp = new DataTable();
-            Tb.Fill(dtTmp);  // 執行 SQL 命令
-
+            SqlDataAdapter Tb = new SqlDataAdapter(sql, sConn);
+            Tb.Fill(dt);  // 執行 SQL 命令
+            
             sConn.Close();   // 關閉連線
         }
         catch (Exception ex)
