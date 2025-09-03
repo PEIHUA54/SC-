@@ -4,112 +4,160 @@ using System.Windows.Forms;
 using System.IO;
 using System.Diagnostics;
 using System.Data.SqlClient;
-using System.Globalization;
-
-// 如果使用 .NET Core/.NET 5+ 請改用下面這行
-// using Microsoft.Data.SqlClient;
+using System.Data;
 
 namespace HIPOSFileComparer
 {
 public partial class Form1 : Form
 {
-// 路徑設定
-private bool useTestPath = true; // 測試模式開關，正式版改為 false
+#region 路徑設定變數
+/// <summary>
+/// 測試/正式模式開關，true=測試模式，false=正式模式
+/// </summary>
+private bool useTestPath = true;
 
 ```
-    // 測試路徑 - 需要先解壓縮 ZIP 檔案
-    private string testVersionPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\hipossc_version.txt";
-    private string testServicePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Service.exe";
-    private string testUpdatePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Update.exe";
-    private string testWebPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Web.dll";
-    private string testBatPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\接收收銀機最新版本與更新.bat";
+    // 測試路徑設定 - 需要先解壓縮 ZIP 檔案
+    private string testVersionPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\hipossc_version.txt";      // 總部版本檔案路徑
+    private string testServicePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\test_SC.Service.exe";       // 門市 Service 檔案路徑
+    private string testUpdatePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\test_SC.Update.exe";         // 門市 Update 檔案路徑
+    private string testWebPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\test_SC.Web.dll";               // 門市 Web 檔案路徑
+    private string testBatPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\接收收銀機最新版本與更新.bat";    // 更新用批次檔路徑
 
-    // 正式路徑 - 請確認總部版本檔案的實際位置
-    private string prodVersionPath = @"e:\TC_SC\hipossc_version.txt"; // 請確認實際路徑
-    private string prodServicePath = @"e:\TC_SC\Service\SC.Service\SC.Service.exe";
-    private string prodUpdatePath = @"e:\TC_SC\App\SC.Update\SC.Update.exe";
-    private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";
-    private string prodBatPath = @"E:\BAT\接收收銀機最新版本與更新.bat";
+    // 正式路徑設定
+    private string prodVersionPath = @"e:\TC_SC\hipossc_version.txt";                            // 正式總部版本檔案路徑
+    private string prodServicePath = @"e:\TC_SC\Service\SC.Service\SC.Service.exe";             // 正式門市 Service 檔案路徑
+    private string prodUpdatePath = @"e:\TC_SC\App\SC.Update\SC.Update.exe";                    // 正式門市 Update 檔案路徑
+    private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";                                // 正式門市 Web 檔案路徑
+    private string prodBatPath = @"E:\BAT\接收收銀機最新版本與更新.bat";                          // 正式更新用批次檔路徑
+    #endregion
 
-    // 資料庫連線字串 (請依實際情況修改)
-    private string connectionString = @"Data Source=.;Initial Catalog=YourDatabase;Integrated Security=True";
-
-    // 檔案資訊類別
+    #region 檔案資訊類別
+    /// <summary>
+    /// 檔案資訊類別，用來儲存檔案的基本資訊
+    /// </summary>
     public class FileInfo
     {
-        public string Name { get; set; }
-        public DateTime ModifyTime { get; set; }
-        public long FileSize { get; set; }
+        public string Name { get; set; }        // 檔案名稱
+        public DateTime ModifyTime { get; set; } // 檔案修改時間
+        public long FileSize { get; set; }       // 檔案大小
     }
+    #endregion
 
+    #region Form 初始化
     public Form1()
     {
         InitializeComponent();
+        
+        // 設定程式標題，包含版本資訊
+        System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+        System.Diagnostics.FileVersionInfo fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+        string version = fvi.FileVersion;
+        this.Text = "HIPOS檔案比對工具     版號:[" + version + "]";
     }
 
     private void Form1_Load(object sender, EventArgs e)
     {
-        SetupDataGridView();
-        InitializeButtons();
+        SetupDataGridView();     // 初始化資料表格
+        InitializeButtons();     // 初始化按鈕狀態
     }
+    #endregion
 
+    #region DataGridView 設定
+    /// <summary>
+    /// 設定 DataGridView 的外觀和欄位
+    /// </summary>
     private void SetupDataGridView()
     {
-        // 清除預設欄位
-        dataGridView1.Columns.Clear();
-        
-        // 設定基本屬性
-        dataGridView1.AllowUserToAddRows = false;
-        dataGridView1.AllowUserToDeleteRows = false;
-        dataGridView1.ReadOnly = true;
-        dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        dataGridView1.MultiSelect = false;
-        dataGridView1.BackgroundColor = Color.White;
-        dataGridView1.GridColor = Color.Black;
-        
-        // 設定欄位
-        dataGridView1.Columns.Add("ProgramName", "程式名稱");
-        dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
-        dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
-        dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
-        dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
-        dataGridView1.Columns.Add("Result", "比對結果");
-        
-        // 設定欄位寬度
-        dataGridView1.Columns[0].Width = 135;
-        dataGridView1.Columns[1].Width = 180;
-        dataGridView1.Columns[2].Width = 90;
-        dataGridView1.Columns[3].Width = 180;
-        dataGridView1.Columns[4].Width = 90;
-        dataGridView1.Columns[5].Width = 135;
-        
-        // 設定標題樣式
-        dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.SteelBlue;
-        dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-        dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
-        dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-        dataGridView1.ColumnHeadersHeight = 35;
-        dataGridView1.RowTemplate.Height = 35;
+        try
+        {
+            // 清除預設欄位
+            dataGridView1.Columns.Clear();
+            
+            // 設定基本屬性 - 禁止使用者新增/刪除資料，設為唯讀
+            dataGridView1.AllowUserToAddRows = false;
+            dataGridView1.AllowUserToDeleteRows = false;
+            dataGridView1.ReadOnly = true;
+            dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;  // 選取整行
+            dataGridView1.MultiSelect = false;                                      // 單選模式
+            dataGridView1.BackgroundColor = Color.White;                            // 背景白色
+            dataGridView1.GridColor = Color.Black;                                  // 格線黑色
+            
+            // 建立欄位
+            dataGridView1.Columns.Add("ProgramName", "程式名稱");
+            dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
+            dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
+            dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
+            dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
+            dataGridView1.Columns.Add("Result", "比對結果");
+            
+            // 設定欄位寬度
+            dataGridView1.Columns[0].Width = 135; // 程式名稱
+            dataGridView1.Columns[1].Width = 180; // 總部日期
+            dataGridView1.Columns[2].Width = 90;  // 總部大小
+            dataGridView1.Columns[3].Width = 180; // 門市日期
+            dataGridView1.Columns[4].Width = 90;  // 門市大小
+            dataGridView1.Columns[5].Width = 135; // 比對結果
+            
+            // 設定標題列樣式 - 藍色背景、白色字體、粗體、置中
+            dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.SteelBlue;
+            dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
+            dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridView1.ColumnHeadersHeight = 35;  // 標題列高度
+            dataGridView1.RowTemplate.Height = 35;   // 資料列高度
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("初始化表格時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
+    #endregion
 
+    #region 按鈕狀態控制
+    /// <summary>
+    /// 初始化按鈕狀態 - 只能執行版本比對
+    /// </summary>
     private void InitializeButtons()
     {
-        // 初始狀態：只能執行版本比對
-        button1.Enabled = true;  // 版本比對
-        button2.Enabled = false; // 接收更新 (先禁用)
-        button3.Enabled = false; // 清除設定檔 (先禁用)
+        button1.Enabled = true;  // 版本比對 - 可用
+        button2.Enabled = false; // 接收更新 - 禁用
+        button3.Enabled = false; // 清除設定檔 - 禁用
     }
 
-    // Button1：版本比對
+    /// <summary>
+    /// 根據比對結果更新按鈕可用狀態
+    /// </summary>
+    /// <param name="allCorrect">是否全部比對正確</param>
+    private void UpdateButtonStates(bool allCorrect)
+    {
+        if (allCorrect)
+        {
+            // 全部正確：可以清除設定檔，不需要更新
+            button2.Enabled = false; // 不需要更新
+            button3.Enabled = true;  // 可以清除設定檔
+        }
+        else
+        {
+            // 有不正確：需要更新，不能清除設定檔
+            button2.Enabled = true;  // 需要更新
+            button3.Enabled = false; // 不能清除設定檔
+        }
+    }
+    #endregion
+
+    #region 按鈕事件處理
+    /// <summary>
+    /// Button1 點擊事件 - 執行版本比對
+    /// </summary>
     private void button1_Click(object sender, EventArgs e)
     {
         try
         {
-            button1.Enabled = false; // 比對期間禁用按鈕
-            this.Cursor = Cursors.WaitCursor;
+            button1.Enabled = false;              // 比對期間禁用按鈕
+            this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
 
-            // 清空現有資料
-            dataGridView1.Rows.Clear();
+            dataGridView1.Rows.Clear();           // 清空現有資料
 
             // 讀取總部版本資訊
             var serverFiles = ReadServerVersionFile();
@@ -132,37 +180,41 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"版本比對發生錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("版本比對發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
-            button1.Enabled = true;
-            this.Cursor = Cursors.Default;
+            button1.Enabled = true;               // 恢復按鈕可用狀態
+            this.Cursor = Cursors.Default;        // 恢復正常游標
         }
     }
 
-    // Button2：接收 HIPOS 最新版本與更新
+    /// <summary>
+    /// Button2 點擊事件 - 接收 HIPOS 最新版本與更新
+    /// </summary>
     private void button2_Click(object sender, EventArgs e)
     {
         try
         {
+            // 取得批次檔路徑 - 根據測試/正式模式選擇
             string batPath = useTestPath ? testBatPath : prodBatPath;
 
+            // 檢查批次檔是否存在
             if (!File.Exists(batPath))
             {
-                MessageBox.Show($"找不到批次檔案：{batPath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("找不到批次檔案：" + batPath, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            button2.Enabled = false;
-            this.Cursor = Cursors.WaitCursor;
+            button2.Enabled = false;              // 更新期間禁用按鈕
+            this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
 
-            // 執行 BAT 檔
+            // 建立並執行批次檔程序
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
-                FileName = batPath,
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Normal
+                FileName = batPath,                // 批次檔路徑
+                UseShellExecute = true,           // 使用系統 Shell 執行
+                WindowStyle = ProcessWindowStyle.Normal // 顯示執行視窗
             };
 
             Process process = Process.Start(startInfo);
@@ -176,18 +228,21 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"執行更新時發生錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
-            button2.Enabled = true;
-            this.Cursor = Cursors.Default;
+            button2.Enabled = true;               // 恢復按鈕可用狀態
+            this.Cursor = Cursors.Default;        // 恢復正常游標
         }
     }
 
-    // Button3：清除設定檔資料
+    /// <summary>
+    /// Button3 點擊事件 - 清除設定檔資料
+    /// </summary>
     private void button3_Click(object sender, EventArgs e)
     {
+        // 確認對話框
         DialogResult result = MessageBox.Show("確定要清除設定檔資料嗎？", "清除確認", 
             MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         
@@ -195,7 +250,7 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
         {
             try
             {
-                ExecuteDeleteSQL();
+                ExecuteDeleteSQL();  // 執行 SQL 刪除操作
                 MessageBox.Show("已刪除完成！", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
                 // 清除完成後重置按鈕狀態
@@ -203,39 +258,99 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清除設定檔時發生錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("清除設定檔時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
+    #endregion
 
-    // 讀取總部版本檔案
+    #region 資料庫操作 - 參考前輩寫法
+    /// <summary>
+    /// 開啟 SC 資料庫連線 - 參考前輩的 OpenScSqlConnection 方法
+    /// </summary>
+    /// <param name="connection">SQL 連線物件</param>
+    private static void OpenScSqlConnection(SqlConnection connection)
+    {
+        string connectionString = GetScConnectionString();
+        connection.ConnectionString = connectionString;
+        connection.Open();
+    }
+
+    /// <summary>
+    /// 取得 SC 資料庫連線字串 - 參考前輩的 GetScConnectionString 方法
+    /// </summary>
+    /// <returns>資料庫連線字串</returns>
+    static private string GetScConnectionString()
+    {
+        // 請依實際環境修改資料庫連線資訊
+        return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582;Max Pool Size = 1000;Connection Timeout=1000";
+    }
+
+    /// <summary>
+    /// 執行 SQL 刪除操作 - 參考前輩使用 SqlDataAdapter 的寫法
+    /// </summary>
+    private void ExecuteDeleteSQL()
+    {
+        try
+        {
+            string SQL = "";
+            SQL = " DELETE FROM [FileModList] "; // 刪除檔案修改清單
+
+            SqlConnection sConn = new SqlConnection();
+            OpenScSqlConnection(sConn);  // 開啟 SC 資料庫連線
+
+            // 使用 SqlDataAdapter 執行 SQL - 參考前輩的寫法
+            SqlCommand sSQL_Comm = new SqlCommand(SQL);
+            SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+            sSQL_Comm = new SqlCommand(SQL);
+            Tb = new SqlDataAdapter(SQL, sConn);
+            DataTable dtTmp = new DataTable();
+            Tb.Fill(dtTmp);  // 執行 SQL 命令
+
+            sConn.Close();   // 關閉連線
+        }
+        catch (Exception ex)
+        {
+            throw new Exception("執行 SQL 刪除時發生錯誤：" + ex.Message);
+        }
+    }
+    #endregion
+
+    #region 檔案讀取處理
+    /// <summary>
+    /// 讀取總部版本檔案 - 解析 hipossc_version.txt
+    /// </summary>
+    /// <returns>檔案資訊陣列，包含三個檔案的資訊</returns>
     private FileInfo[] ReadServerVersionFile()
     {
         try
         {
+            // 根據測試/正式模式選擇路徑
             string versionPath = useTestPath ? testVersionPath : prodVersionPath;
             
+            // 檢查檔案是否存在
             if (!File.Exists(versionPath))
             {
-                throw new FileNotFoundException($"找不到版本檔案：{versionPath}");
+                throw new FileNotFoundException("找不到版本檔案：" + versionPath);
             }
 
-            string[] lines = File.ReadAllLines(versionPath);
-            FileInfo[] files = new FileInfo[3];
+            string[] lines = File.ReadAllLines(versionPath);  // 讀取所有行
+            FileInfo[] files = new FileInfo[3];               // 建立三個檔案的陣列
 
-            for (int i = 1; i < lines.Length && i <= 3; i++) // 跳過標題行
+            // 解析版本檔案內容 (跳過第一行標題)
+            for (int i = 1; i < lines.Length && i <= 3; i++)
             {
-                string[] parts = lines[i].Split(',');
+                string[] parts = lines[i].Split(',');  // 以逗號分割
                 if (parts.Length >= 3)
                 {
-                    int index = GetFileIndex(parts[0]);
+                    int index = GetFileIndex(parts[0]);  // 取得檔案索引
                     if (index >= 0)
                     {
                         files[index] = new FileInfo
                         {
-                            Name = parts[0],
-                            ModifyTime = DateTime.Parse(parts[1]),
-                            FileSize = long.Parse(parts[2])
+                            Name = parts[0],                        // 檔案名稱
+                            ModifyTime = DateTime.Parse(parts[1]),  // 檔案修改時間
+                            FileSize = long.Parse(parts[2])         // 檔案大小
                         };
                     }
                 }
@@ -245,47 +360,57 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"讀取總部版本檔案錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("讀取總部版本檔案錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
         }
     }
 
-    // 讀取門市檔案資訊
+    /// <summary>
+    /// 讀取門市檔案資訊 - 取得實際檔案的修改時間和大小
+    /// </summary>
+    /// <returns>檔案資訊陣列</returns>
     private FileInfo[] ReadClientFiles()
     {
         FileInfo[] files = new FileInfo[3];
+        
+        // 根據測試/正式模式選擇路徑陣列
         string[] filePaths = useTestPath ? 
             new string[] { testServicePath, testWebPath, testUpdatePath } :
             new string[] { prodServicePath, prodWebPath, prodUpdatePath };
 
+        // 逐一讀取檔案資訊
         for (int i = 0; i < filePaths.Length; i++)
         {
             try
             {
                 if (File.Exists(filePaths[i]))
                 {
+                    // 取得檔案資訊
                     System.IO.FileInfo fileInfo = new System.IO.FileInfo(filePaths[i]);
                     files[i] = new FileInfo
                     {
-                        Name = GetFileNameByIndex(i),
-                        ModifyTime = fileInfo.LastWriteTime,
-                        FileSize = fileInfo.Length
+                        Name = GetFileNameByIndex(i),         // 檔案名稱
+                        ModifyTime = fileInfo.LastWriteTime,  // 最後修改時間
+                        FileSize = fileInfo.Length            // 檔案大小
                     };
                 }
                 else
                 {
+                    // 檔案不存在時的處理
                     files[i] = new FileInfo
                     {
                         Name = GetFileNameByIndex(i),
-                        ModifyTime = DateTime.MinValue,
+                        ModifyTime = DateTime.MinValue,  // 設為最小值表示不存在
                         FileSize = 0
                     };
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"讀取門市檔案 {filePaths[i]} 錯誤：{ex.Message}", "錯誤", 
+                MessageBox.Show("讀取門市檔案 " + filePaths[i] + " 錯誤：" + ex.Message, "錯誤", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                
+                // 發生錯誤時的預設值
                 files[i] = new FileInfo
                 {
                     Name = GetFileNameByIndex(i),
@@ -297,30 +422,40 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
 
         return files;
     }
+    #endregion
 
-    // 比對並顯示結果
+    #region 比對處理
+    /// <summary>
+    /// 比對總部與門市檔案並顯示結果
+    /// </summary>
+    /// <param name="serverFiles">總部檔案資訊</param>
+    /// <param name="clientFiles">門市檔案資訊</param>
+    /// <returns>是否全部比對正確</returns>
     private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
     {
-        bool allCorrect = true;
+        bool allCorrect = true;  // 記錄是否全部正確
 
+        // 逐一比對三個檔案
         for (int i = 0; i < 3; i++)
         {
             bool isCorrect = false;
             string result = "檔案不存在";
 
+            // 檢查檔案是否存在且可比對
             if (serverFiles[i] != null && clientFiles[i] != null)
             {
                 if (clientFiles[i].ModifyTime != DateTime.MinValue)
                 {
+                    // 比對檔案修改時間和檔案大小是否相同
                     isCorrect = (serverFiles[i].ModifyTime == clientFiles[i].ModifyTime && 
                                serverFiles[i].FileSize == clientFiles[i].FileSize);
                     result = isCorrect ? "正確" : "不正確";
                 }
             }
 
-            if (!isCorrect) allCorrect = false;
+            if (!isCorrect) allCorrect = false;  // 有任一檔案不正確就設為 false
 
-            // 加入資料到 DataGridView
+            // 將比對結果加入到 DataGridView 顯示
             AddComparisonRow(
                 serverFiles[i]?.Name ?? GetFileNameByIndex(i),
                 serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "",
@@ -328,24 +463,28 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
                 clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "",
                 clientFiles[i]?.FileSize.ToString() ?? "",
                 result,
-                isCorrect ? Color.Green : Color.Red
+                isCorrect ? Color.Green : Color.Red  // 正確顯示綠色，不正確顯示紅色
             );
         }
 
         return allCorrect;
     }
 
+    /// <summary>
+    /// 將比對結果加入到 DataGridView 中顯示
+    /// </summary>
     private void AddComparisonRow(string programName, string serverDate, string serverSize, 
         string clientDate, string clientSize, string result, Color resultColor)
     {
+        // 加入新的資料列
         int rowIndex = dataGridView1.Rows.Add(programName, serverDate, serverSize, clientDate, clientSize, result);
         
-        // 設定程式名稱欄位樣式
+        // 設定程式名稱欄位樣式 - 深藍色背景、白色字體、粗體
         dataGridView1.Rows[rowIndex].Cells[0].Style.BackColor = Color.DarkBlue;
         dataGridView1.Rows[rowIndex].Cells[0].Style.ForeColor = Color.White;
         dataGridView1.Rows[rowIndex].Cells[0].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
         
-        // 設定資料欄位樣式
+        // 設定資料欄位樣式 - 白色背景、黑色字體、置中對齊
         for (int i = 1; i < 5; i++)
         {
             dataGridView1.Rows[rowIndex].Cells[i].Style.BackColor = Color.White;
@@ -354,71 +493,47 @@ private bool useTestPath = true; // 測試模式開關，正式版改為 false
             dataGridView1.Rows[rowIndex].Cells[i].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
         }
         
-        // 設定比對結果欄位樣式
+        // 設定比對結果欄位樣式 - 白色背景、根據結果顯示不同顏色、粗體、置中
         dataGridView1.Rows[rowIndex].Cells[5].Style.BackColor = Color.White;
         dataGridView1.Rows[rowIndex].Cells[5].Style.ForeColor = resultColor;
         dataGridView1.Rows[rowIndex].Cells[5].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
         dataGridView1.Rows[rowIndex].Cells[5].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
     }
+    #endregion
 
-    private void UpdateButtonStates(bool allCorrect)
-    {
-        if (allCorrect)
-        {
-            // 全部正確：可以清除設定檔，不需要更新
-            button2.Enabled = false;
-            button3.Enabled = true;
-        }
-        else
-        {
-            // 有不正確：需要更新，不能清除設定檔
-            button2.Enabled = true;
-            button3.Enabled = false;
-        }
-    }
-
-    private void ExecuteDeleteSQL()
-    {
-        try
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                using (SqlCommand command = new SqlCommand("DELETE FROM [FileModList]", connection))
-                {
-                    int rowsAffected = command.ExecuteNonQuery();
-                    // 可以記錄刪除的筆數
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"執行 SQL 刪除時發生錯誤：{ex.Message}");
-        }
-    }
-
-    // 輔助方法
+    #region 輔助方法
+    /// <summary>
+    /// 根據檔案名稱取得索引位置
+    /// </summary>
+    /// <param name="fileName">檔案名稱</param>
+    /// <returns>索引位置 (0=Service, 1=Web, 2=Update)</returns>
     private int GetFileIndex(string fileName)
     {
         switch (fileName.ToUpper())
         {
-            case "SC.SERVICE": return 0;
-            case "SC.WEB": return 1;
-            case "SC.UPDATE": return 2;
-            default: return -1;
+            case "SC.SERVICE": return 0;  // SC.Service 對應索引 0
+            case "SC.WEB": return 1;      // SC.Web 對應索引 1
+            case "SC.UPDATE": return 2;   // SC.Update 對應索引 2
+            default: return -1;           // 找不到對應檔案
         }
     }
 
+    /// <summary>
+    /// 根據索引位置取得檔案名稱
+    /// </summary>
+    /// <param name="index">索引位置</param>
+    /// <returns>檔案名稱</returns>
     private string GetFileNameByIndex(int index)
     {
         switch (index)
         {
-            case 0: return "SC.Service";
-            case 1: return "SC.Web";
-            case 2: return "SC.Update";
-            default: return "";
+            case 0: return "SC.Service";  // 索引 0 對應 SC.Service
+            case 1: return "SC.Web";      // 索引 1 對應 SC.Web
+            case 2: return "SC.Update";   // 索引 2 對應 SC.Update
+            default: return "";           // 無效索引
         }
     }
+    #endregion
 }
 ```
 
