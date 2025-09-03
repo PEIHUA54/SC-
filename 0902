@@ -439,18 +439,28 @@ private bool useTestPath = true;
         for (int i = 0; i < 3; i++)
         {
             bool isCorrect = false;
-            string result = "檔案不存在";
+            string result = "不正確";  // 預設為不正確
 
-            // 檢查檔案是否存在且可比對
-            if (serverFiles[i] != null && clientFiles[i] != null)
+            // 檢查總部和門市檔案是否都存在
+            if (serverFiles[i] != null && clientFiles[i] != null && 
+                clientFiles[i].ModifyTime != DateTime.MinValue)
             {
-                if (clientFiles[i].ModifyTime != DateTime.MinValue)
-                {
-                    // 比對檔案修改時間和檔案大小是否相同
-                    isCorrect = (serverFiles[i].ModifyTime == clientFiles[i].ModifyTime && 
-                               serverFiles[i].FileSize == clientFiles[i].FileSize);
-                    result = isCorrect ? "正確" : "不正確";
-                }
+                // 比對檔案修改時間和檔案大小是否完全相同
+                isCorrect = (serverFiles[i].ModifyTime == clientFiles[i].ModifyTime && 
+                           serverFiles[i].FileSize == clientFiles[i].FileSize);
+                result = isCorrect ? "正確" : "不正確";
+            }
+            else
+            {
+                // 如果總部或門市檔案不存在，顯示錯誤訊息並停止比對
+                string missingFile = "";
+                if (serverFiles[i] == null) missingFile += "總部版本檔案遺失 ";
+                if (clientFiles[i] == null || clientFiles[i].ModifyTime == DateTime.MinValue) 
+                    missingFile += "門市檔案遺失";
+                
+                MessageBox.Show($"{GetFileNameByIndex(i)} {missingFile}", "檔案遺失錯誤", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                result = "檔案遺失";
             }
 
             if (!isCorrect) allCorrect = false;  // 有任一檔案不正確就設為 false
@@ -458,10 +468,10 @@ private bool useTestPath = true;
             // 將比對結果加入到 DataGridView 顯示
             AddComparisonRow(
                 serverFiles[i]?.Name ?? GetFileNameByIndex(i),
-                serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "",
-                serverFiles[i]?.FileSize.ToString() ?? "",
-                clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "",
-                clientFiles[i]?.FileSize.ToString() ?? "",
+                serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
+                serverFiles[i]?.FileSize.ToString() ?? "無資料",
+                clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
+                clientFiles[i]?.FileSize.ToString() ?? "無資料",
                 result,
                 isCorrect ? Color.Green : Color.Red  // 正確顯示綠色，不正確顯示紅色
             );
