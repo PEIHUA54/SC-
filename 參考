@@ -1,0 +1,504 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using System.Diagnostics;
+using System.IO;
+using System.Data.SqlClient;
+using System.Threading;
+using Newtonsoft.Json;
+using System.Security.Cryptography;
+
+namespace HIPOS_SETTING
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+            System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            System.Diagnostics.FileVersionInfo fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+            string version = fvi.FileVersion;
+            this.Text = "HIPOS測試工具     版號:[" + version + "]";
+            var psi = new ProcessStartInfo
+            {
+                FileName = System.IO.Path.Combine(System.Environment.CurrentDirectory, "conn_pos.bat"),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            Process.Start(psi);
+            GetEnumDescription(GetTelegramMode());//取得電文環境
+        }
+        private void button2_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Process.Start("C:/清交易資料.bat");
+                MessageBox.Show("清除成功");
+            }
+            catch
+            {
+                MessageBox.Show("清除失敗");
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            if (String.IsNullOrEmpty(dateEdit1.Text))
+                MessageBox.Show("請輸入入帳日");
+            else
+            {
+                Process.Start(System.Environment.CurrentDirectory + @"\conn_rsl.bat");
+                MessageBox.Show("請先將RSL POS登出再按確認");
+                string sourceDir = @"\\10.70.2.88\c$\RSLPOS\PosLog\";
+                string[] List1 = System.IO.Directory.GetFiles(sourceDir, "*" + dateEdit1.Text.Substring(4, 2) + "." + dateEdit1.Text.Substring(6, 2) + "*");
+                string[] List2 = System.IO.Directory.GetFiles(sourceDir, "*" + dateEdit1.Text + "*");
+                foreach (string f in List1)
+                {
+                    File.Delete(f);
+                }
+                foreach (string f in List2)
+                {
+                    File.Delete(f);
+                }
+                try
+                {
+                    Process.Start(sourceDir + @"\0T0952.MNU");
+                    MessageBox.Show("請做RSL POS的版本更新");
+                }
+                catch
+                {
+                    MessageBox.Show("同步失敗");
+                }
+            }
+        }
+
+        //private void button3_Click(object sender, EventArgs e)
+        //{
+        //    string Folder = @"c:\POS\Web\Register\";
+        //    string Filename = "PreTransNo";
+        //    if (File.Exists(Path.Combine(Folder, Filename)))
+        //    {
+        //        File.Delete(Path.Combine(Folder, Filename));
+        //    }
+        //    MessageBox.Show("已解鎖");
+        //}
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            textBox1.Clear();
+            label3.Text = "";
+            textBox1.Focus();
+        }
+        private static void OpenPosSqlConnection(SqlConnection connection, string ip)
+        {
+            string connectionString = GetPosConnectionString(ip);
+            connection.ConnectionString = connectionString;
+            connection.Open();
+        }
+        static private string GetPosConnectionString(string ip)
+        {
+            return "Data Source=" + ip + ";Initial Catalog=POSLocal;User ID=sa;Password=2wsx4rfv6yhn;Max Pool Size = 1000;Connection Timeout=1000";
+        }
+        private static void OpenScSqlConnection(SqlConnection connection)
+        {
+            string connectionString = GetScConnectionString();
+            connection.ConnectionString = connectionString;
+            connection.Open();
+        }
+        static private string GetScConnectionString()
+        {
+            return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582;Max Pool Size = 1000;Connection Timeout=1000";
+        }
+        private void button6_Click(object sender, EventArgs e)
+        {
+            if (dateEdit4.Text == "")
+            {
+                MessageBox.Show("請輸入入帳日");
+                return;
+            }
+            try
+            {
+                string SQL = "";
+                SQL = "DECLARE @DATE_C VARCHAR(8) SET @DATE_C='" + dateEdit4.DateTime.ToString("yyyyMMdd") + "'";
+                SQL += " DELETE Trans_A where  Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_C  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_D where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_D_Ext where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_End_99 where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_M where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_M_Ext  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_M_Extra_01  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_M_Extra_98  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_MMK  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_MMK_B  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_P  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_P_DIS  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_P_Ext  where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Trans_R where Sales_Date>=@DATE_C ";
+                SQL += "DELETE NonTrans_10 where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Zlog where SalesDate>=@DATE_C ";
+                SQL += "DELETE Ipass_Purchase where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Ipass_Add where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Ipass_Acc where Sales_Date>=@DATE_C ";
+                SQL += "DELETE EZCard_Purchase where Sales_Date>=@DATE_C ";
+                SQL += "DELETE EZCard_ACC where Sales_Date>=@DATE_C ";
+                SQL += "DELETE EZCard_Sale where Sales_Date>=@DATE_C ";
+                SQL += "DELETE EZCard_Lock where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Paya_Data where Sales_Date>=@DATE_C ";
+                SQL += "DELETE PluCard_Record where Sales_Date>=@DATE_C ";
+                SQL += "DELETE BottleReturn where Sales_Date>=@DATE_C ";
+                SQL += "DELETE Cash_Rtn_Record where SalesDate>=@DATE_C ";
+                SQL += "DELETE Icash_Acc where Sales_Date>=@DATE_C ";
+                SQL += "DELETE HappyCash_Record where Sales_Date>=@DATE_C ";
+                SQL += "DELETE eventlogadd where Sales_Date>=@DATE_C ";
+                SQL += "DELETE eventlog where ActionTime >= @DATE_C ";
+                SQL += "DELETE Trans_MMK where Create_Time>=@DATE_C ";
+                SQL += "DELETE TelegramLog where CreateTime>=@DATE_C ";
+                SqlConnection sConn = new SqlConnection();
+                OpenPosSqlConnection(sConn, comboBoxEdit1.SelectedItem.ToString());
+                SqlCommand sSQL_Comm = new SqlCommand(SQL);
+                SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+                sSQL_Comm = new SqlCommand(SQL);
+                Tb = new SqlDataAdapter(SQL, sConn);
+                DataTable dtTmp = new DataTable();
+                Tb.Fill(dtTmp);
+                //Process.Start(System.Environment.CurrentDirectory + @"\conn_pos.bat");
+
+
+                string Folder = @"\\" + comboBoxEdit1.SelectedItem.ToString() + @"\c$\POS\Web\Register\";
+                string Filename = "PreTransNo";
+
+                if (File.Exists(Path.Combine(Folder, Filename)))
+                {
+                    File.Delete(Path.Combine(Folder, Filename));
+                }
+                MessageBox.Show("清除完成");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("清除失敗" + ex.ToString());
+            }
+        }
+
+        private void button2_Click_1(object sender, EventArgs e)
+        {
+            string SQL = "";
+            SQL = " TRUNCATE TABLE FileModList ";
+            SQL += " TRUNCATE TABLE plu  ";
+            SQL += " TRUNCATE TABLE p_plu  ";
+            SqlConnection sConn = new SqlConnection();
+            OpenScSqlConnection(sConn);
+            SqlCommand sSQL_Comm = new SqlCommand(SQL);
+            SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+            sSQL_Comm = new SqlCommand(SQL);
+            Tb = new SqlDataAdapter(SQL, sConn);
+            DataTable dtTmp = new DataTable();
+            Tb.Fill(dtTmp);
+            Process.Start(System.Environment.CurrentDirectory + @"\刪除主檔檔案.bat");
+            MessageBox.Show("清除完成");
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Process.Start(System.Environment.CurrentDirectory + @"\刪除nonsale.bat");
+                MessageBox.Show("清除NONSALE完成");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            int sum = 0;
+            int len = textBox1.Text.Length;
+            for (int i = 0; i < len; i++)
+            {
+                sum += int.Parse(textBox1.Text.Substring(i, 1));
+            }
+            if (sum > 0)
+                label3.Text = sum.ToString();
+            else
+                label3.Text = "";
+        }
+
+        private void textBox1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar != '\b')//这是允许输入退格键
+            {
+                if ((e.KeyChar < '0') || (e.KeyChar > '9'))//这是允许输入0-9数字
+                {
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string SQL = "";
+                SQL = "TRUNCATE TABLE ProgramVersion ";
+                SQL += " TRUNCATE TABLE ProgramVersionDetail  ";
+                SqlConnection sConn = new SqlConnection();
+                OpenPosSqlConnection(sConn, comboBoxEdit1.SelectedItem.ToString());
+                SqlCommand sSQL_Comm = new SqlCommand(SQL);
+                SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+                sSQL_Comm = new SqlCommand(SQL);
+                Tb = new SqlDataAdapter(SQL, sConn);
+                DataTable dtTmp = new DataTable();
+                Tb.Fill(dtTmp);
+                MessageBox.Show("清除完成");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("清除失敗");
+            }
+
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string SQL = "";
+                SQL = "TRUNCATE TABLE ProgramVersion ";
+                SQL += " TRUNCATE TABLE ProgramVersionDetail  ";
+                SqlConnection sConn = new SqlConnection();
+                OpenScSqlConnection(sConn);
+                SqlCommand sSQL_Comm = new SqlCommand(SQL);
+                SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+                sSQL_Comm = new SqlCommand(SQL);
+                Tb = new SqlDataAdapter(SQL, sConn);
+                DataTable dtTmp = new DataTable();
+                Tb.Fill(dtTmp);
+                MessageBox.Show("清除完成");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("清除失敗");
+            }
+        }
+
+        private void button8_Click(object sender, EventArgs e)
+        {
+            string file = System.Environment.CurrentDirectory + @"\vnc_pos.bat";
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+            }
+
+            using (StreamWriter outputFile = new StreamWriter(Path.Combine(System.Environment.CurrentDirectory, "vnc_pos.bat"), true))
+            {
+                outputFile.WriteLine(@"ECHO [Connection]> E:\VNC.TXT");
+                outputFile.WriteLine(@"ECHO Host=" + comboBoxEdit1.SelectedItem.ToString() + @">> E:\VNC.TXT");
+                outputFile.WriteLine(@"ECHO Password=6e37d0139dbff289>> E:\VNC.TXT");
+                outputFile.WriteLine(@"e:\tvnviewer.exe -optionsfile=E:\VNC.TXT");
+            }
+            Process.Start(file);
+        }
+
+        private void button3_Click_1(object sender, EventArgs e)
+        {
+            System.Diagnostics.Process.Start("http://192.168.254.167/setup1.aspx");
+        }
+
+        private void button9_Click(object sender, EventArgs e)
+        {
+            Process.Start(System.Environment.CurrentDirectory + @"\conn_pos.bat");
+            string Folder = @"\\" + comboBoxEdit1.SelectedItem.ToString() + @"\c$\POS\Web\Register\";
+            string Filename = "PreTransNo";
+
+            if (File.Exists(Path.Combine(Folder, Filename)))
+            {
+                File.Delete(Path.Combine(Folder, Filename));
+            }
+        }
+
+        private void button10_Click(object sender, EventArgs e)
+        {
+            System.Diagnostics.Process.Start(System.Environment.CurrentDirectory + @"\HIPOS測試工具操作手冊_20231026_確認版.pdf");
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
+            IMG_PREVIEW f2 = new IMG_PREVIEW();
+            f2.Show(); // Shows Form2 you can also use f2.Show()
+        }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            string SQL = "";
+            SQL = " TRUNCATE TABLE FileModList ";
+            SQL += " TRUNCATE TABLE CollectingBanks  ";
+            SqlConnection sConn = new SqlConnection();
+            OpenScSqlConnection(sConn);
+            SqlCommand sSQL_Comm = new SqlCommand(SQL);
+            SqlDataAdapter Tb = new SqlDataAdapter(SQL, sConn);
+            sSQL_Comm = new SqlCommand(SQL);
+            Tb = new SqlDataAdapter(SQL, sConn);
+            DataTable dtTmp = new DataTable();
+            Tb.Fill(dtTmp);
+            //Process.Start(System.Environment.CurrentDirectory + @"\刪除主檔檔案.bat");
+            MessageBox.Show("清除完成");
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="mode"></param>
+        /// 0:正式、1=測試、2模擬
+        public void TelegramFile(TelegramMode telegramMode)
+        {
+            List<TelegramModel> telegrams = new List<TelegramModel>();
+            string url_RS_TRAN = "";
+            string url_CTS_TRAN = "";
+            string url_RS_POST = "";
+            string url_CallC35 = "";
+            switch (telegramMode)
+            {
+                case TelegramMode.Production:
+                    url_RS_TRAN = "http://192.168.254.167/RS_TRAN.aspx?QHead=";
+                    url_CTS_TRAN = "http://192.168.254.164/CTS_TRAN.aspx?QHead=";
+                    url_RS_POST = "http://192.168.254.167/RS_POST.aspx?";
+                    url_CallC35 = "http://192.168.254.167/C35.aspx?QHead=";
+                    break;
+                case TelegramMode.Test:
+                    url_RS_TRAN = "http://192.168.254.217/RS_TRAN.aspx?QHead=";
+                    url_CTS_TRAN = "http://192.168.254.44/CTS_TRAN.aspx?QHead=";
+                    url_RS_POST = "http://192.168.254.217/RS_POST.aspx?";
+                    url_CallC35 = "http://192.168.254.217/C35.aspx?QHead=";
+                    break;
+                case TelegramMode.Simulate:
+                    url_RS_TRAN = "http://192.168.254.44/POS_TEST_TELEGRAM/TEST_TRAN?QHead=";
+                    url_CTS_TRAN = "http://192.168.254.44/POS_TEST_TELEGRAM/TEST_TRAN?QHead=";
+                    url_RS_POST = "http://192.168.254.44/POS_TEST_TELEGRAM/TEST_TRAN?";
+                    url_RS_TRAN = "http://192.168.254.44/POS_TEST_TELEGRAM/TEST_TRAN?QHead=";
+                    break;
+            }
+            telegrams.Add(new TelegramModel { Name = "Default", Url = url_RS_TRAN });
+            telegrams.Add(new TelegramModel { Name = "CTS_TRAN", Url = url_CTS_TRAN });
+            telegrams.Add(new TelegramModel { Name = "CTS_TRAN_WithoutQHead", Url = url_CTS_TRAN.Replace("QHead=", "") });
+            telegrams.Add(new TelegramModel { Name = "RS_TRAN_WithoutQHead", Url = url_RS_TRAN.Replace("QHead=", "") });
+            telegrams.Add(new TelegramModel { Name = "RS_POST", Url = url_RS_POST });
+            telegrams.Add(new TelegramModel { Name = "CallIF0310", Url = "http://10.185.1.28:21?QHead=" });
+            telegrams.Add(new TelegramModel { Name = "CallC35", Url = url_CallC35 });
+            // 轉成 JSON 字串
+            string jsonString = JsonConvert.SerializeObject(telegrams, Formatting.Indented);
+            // 指定資料夾路徑
+            string folderPath = @"\\" + comboBoxEdit1.SelectedItem.ToString() + @"\c$\POS\Web\Register\";
+            string filePath = Path.Combine(folderPath, "TelegramURL.json");
+            // 寫入檔案
+            File.WriteAllText(filePath, jsonString);
+            GetEnumDescription(GetTelegramMode());//取得電文環境
+        }
+
+        public class TelegramModel
+        {
+            public string Name { get; set; }
+            public string Url { get; set; }
+        }
+        //正式
+        private void button13_Click(object sender, EventArgs e)
+        {
+            TelegramFile(TelegramMode.Production);
+        }
+        //測試
+        private void button14_Click(object sender, EventArgs e)
+        {
+            TelegramFile(TelegramMode.Test);
+        }
+        //模擬
+        private void button15_Click(object sender, EventArgs e)
+        {
+            TelegramFile(TelegramMode.Simulate);
+        }
+        public enum TelegramMode
+        {
+            [Description("正式區")]
+            Production = 0,
+            [Description("測試區")]
+            Test = 1,
+            [Description("模擬電文")]
+            Simulate = 2 ,
+            [Description("讀取錯誤")]
+            Error = 3
+        }
+        public TelegramMode GetTelegramMode()
+        {
+            TelegramMode telegramMode = new TelegramMode();
+            try
+            {
+                string folderPath = @"\\" + comboBoxEdit1.SelectedItem.ToString() + @"\c$\POS\Web\Register\";
+                string filePath = Path.Combine(folderPath, "TelegramURL.json");
+                string jsonString = File.ReadAllText(filePath);
+                if (jsonString.Contains("http://192.168.254.167"))
+                    telegramMode = TelegramMode.Production;
+                else if (jsonString.Contains("http://192.168.254.217"))
+                    telegramMode = TelegramMode.Test;
+                else if (jsonString.Contains("http://192.168.254.44/POS_TEST_TELEGRAM"))
+                    telegramMode = TelegramMode.Simulate;
+            }
+            catch(Exception ex)
+            {
+                telegramMode = TelegramMode.Error;
+            }
+            return telegramMode;
+        }
+        public void GetEnumDescription(Enum value)
+        {
+            var field = value.GetType().GetField(value.ToString());
+            var attr = Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) as DescriptionAttribute;
+            label_telegram.Text = attr?.Description ?? value.ToString();
+        }
+
+        private void comboBoxEdit1_SelectedValueChanged(object sender, EventArgs e)
+        {
+            GetEnumDescription(GetTelegramMode());//取得電文環境
+        }
+
+        private void button18_Click(object sender, EventArgs e)
+        {
+            var res = CreateCode("T095");
+            label7.Text = "密碼: " + res.Code;
+            label8.Text = "有效時間: " + res.EndTime.ToString("yyyy/MM/dd HH:mm");
+        }
+        public class CreateCodeModel
+        {
+            public string Code { get; set; }
+            public DateTime EndTime { get; set; }
+        }
+        public CreateCodeModel CreateCode(string shopId, int maxMinutes = 180)
+        {
+            CreateCodeModel result = new CreateCodeModel();
+            DateTime tryTime = DateTime.Now;
+            tryTime = new DateTime(tryTime.Year, tryTime.Month, tryTime.Day,
+                   tryTime.Hour, tryTime.Minute, 0);
+            string timeStr = tryTime.ToString("yyyy-MM-dd HH:mm:ss"); // 精確到分鐘
+            string rawString = shopId + timeStr;
+            //rawString = "T0952025-07-08 14:56:00";
+            byte[] hashBytes;
+
+            using (SHA1 sha1 = SHA1.Create())
+            {
+                hashBytes = sha1.ComputeHash(Encoding.Unicode.GetBytes(rawString));
+            }
+
+            string hexStr = BitConverter.ToString(hashBytes).Replace("-", "").ToUpper();
+            string codeCandidate = hexStr.Substring(0, 6); // 從第3位起取 6 位
+            result.Code = codeCandidate;
+            result.EndTime = tryTime.AddMinutes(180);
+            return result;
+        }
+
+    }
+}
