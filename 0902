@@ -6,6 +6,9 @@ using System.Diagnostics;
 using System.Data.SqlClient;
 using System.Globalization;
 
+// 如果使用 .NET Core/.NET 5+ 請改用下面這行
+// using Microsoft.Data.SqlClient;
+
 namespace HIPOSFileComparer
 {
 public partial class Form1 : Form
@@ -14,15 +17,15 @@ public partial class Form1 : Form
 private bool useTestPath = true; // 測試模式開關，正式版改為 false
 
 ```
-    // 測試路徑
-    private string testVersionPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\hipossc_version.txt";
-    private string testServicePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Service.exe";
-    private string testUpdatePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Update.exe";
-    private string testWebPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Web.dll";
-    private string testBatPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\接收收銀機最新版本與更新.bat";
+    // 測試路徑 - 需要先解壓縮 ZIP 檔案
+    private string testVersionPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\hipossc_version.txt";
+    private string testServicePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Service.exe";
+    private string testUpdatePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Update.exe";
+    private string testWebPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SC.Web.dll";
+    private string testBatPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\接收收銀機最新版本與更新.bat";
 
-    // 正式路徑
-    private string prodVersionPath = @"e:\TC_SC\Service\hipossc_version.txt"; // 假設版本檔在這
+    // 正式路徑 - 請確認總部版本檔案的實際位置
+    private string prodVersionPath = @"e:\TC_SC\hipossc_version.txt"; // 請確認實際路徑
     private string prodServicePath = @"e:\TC_SC\Service\SC.Service\SC.Service.exe";
     private string prodUpdatePath = @"e:\TC_SC\App\SC.Update\SC.Update.exe";
     private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";
