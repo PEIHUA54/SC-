@@ -14,159 +14,80 @@ InitializeComponent();
 ```
     private void Form1_Load(object sender, EventArgs e)
     {
-        FillTableContent();
+        SetupDataGridView();
     }
 
-    private void FillTableContent()
+    private void SetupDataGridView()
     {
-        // 清空表格
-        tableMain.Controls.Clear();
+        // 清除預設欄位
+        dataGridView1.Columns.Clear();
         
-        // 第0行：總部版本/門市版本標題 (深藍色)
-        AddMergedHeader("總部版本", 1, 0, 2, Color.Navy);
-        AddMergedHeader("門市版本", 3, 0, 2, Color.Navy);
+        // 設定基本屬性
+        dataGridView1.AllowUserToAddRows = false;
+        dataGridView1.AllowUserToDeleteRows = false;
+        dataGridView1.ReadOnly = true;
+        dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        dataGridView1.MultiSelect = false;
+        dataGridView1.BackgroundColor = Color.White;
+        dataGridView1.GridColor = Color.Black;
         
-        // 第1行：欄位標題 (淺藍色)
-        AddHeader("程式名稱", 0, 1, Color.LightSteelBlue);
-        AddHeader("檔案日期", 1, 1, Color.LightSteelBlue);
-        AddHeader("檔案大小", 2, 1, Color.LightSteelBlue);
-        AddHeader("檔案日期", 3, 1, Color.LightSteelBlue);
-        AddHeader("檔案大小", 4, 1, Color.LightSteelBlue);
-        AddHeader("比對結果", 5, 1, Color.LightSteelBlue);
+        // 設定欄位
+        dataGridView1.Columns.Add("ProgramName", "程式名稱");
+        dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
+        dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
+        dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
+        dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
+        dataGridView1.Columns.Add("Result", "比對結果");
         
-        // 資料行
-        string[] programs = { "SC.Service", "SC.Web", "SC.Update" };
-        for (int i = 0; i < 3; i++)
+        // 設定欄位寬度比例
+        dataGridView1.Columns[0].Width = 135; // 程式名稱 15%
+        dataGridView1.Columns[1].Width = 180; // 總部日期 20%
+        dataGridView1.Columns[2].Width = 90;  // 總部大小 10%
+        dataGridView1.Columns[3].Width = 180; // 門市日期 20%
+        dataGridView1.Columns[4].Width = 90;  // 門市大小 10%
+        dataGridView1.Columns[5].Width = 135; // 比對結果 15%
+        
+        // 設定標題樣式
+        dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.SteelBlue;
+        dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+        dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
+        dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        dataGridView1.ColumnHeadersHeight = 35;
+        
+        // 加入資料行
+        AddDataRow("SC.Service", "2025/7/24 下午 03:26:44", "72192", "2025/7/24 下午 03:26:44", "72192", "不正確", Color.Red);
+        AddDataRow("SC.Web", "2025/7/24 下午 03:27:32", "48128", "2025/7/24 下午 03:27:32", "48128", "不正確", Color.Red);
+        AddDataRow("SC.Update", "2023/8/25 下午 04:59:36", "3754", "2023/8/25 下午 04:59:36", "3754", "正確", Color.Green);
+        
+        // 設定列高度
+        dataGridView1.RowTemplate.Height = 35;
+    }
+    
+    private void AddDataRow(string programName, string serverDate, string serverSize, 
+        string clientDate, string clientSize, string result, Color resultColor)
+    {
+        // 加入資料列
+        int rowIndex = dataGridView1.Rows.Add(programName, serverDate, serverSize, clientDate, clientSize, result);
+        
+        // 設定程式名稱欄位樣式 (深藍色背景)
+        dataGridView1.Rows[rowIndex].Cells[0].Style.BackColor = Color.DarkBlue;
+        dataGridView1.Rows[rowIndex].Cells[0].Style.ForeColor = Color.White;
+        dataGridView1.Rows[rowIndex].Cells[0].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
+        
+        // 設定資料欄位樣式 (白色背景)
+        for (int i = 1; i < 5; i++)
         {
-            int row = i + 2;
-            AddProgramName(programs[i], 0, row);
-            AddData("2025/7/24 下午 03:26:44", 1, row);
-            AddData("72192", 2, row);
-            AddData("2025/7/24 下午 03:26:44", 3, row);
-            AddData("72192", 4, row);
-            
-            if (i < 2)
-                AddResult("不正確", 5, row, Color.Red);
-            else
-                AddResult("正確", 5, row, Color.Green);
+            dataGridView1.Rows[rowIndex].Cells[i].Style.BackColor = Color.White;
+            dataGridView1.Rows[rowIndex].Cells[i].Style.ForeColor = Color.Black;
+            dataGridView1.Rows[rowIndex].Cells[i].Style.Font = new Font("Microsoft JhengHei", 9);
+            dataGridView1.Rows[rowIndex].Cells[i].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
         }
-    }
-
-    // 建立跨欄標題 (總部版本/門市版本)
-    private void AddMergedHeader(string text, int column, int row, int columnSpan, Color backColor)
-    {
-        Panel panel = new Panel
-        {
-            BackColor = backColor,
-            Margin = new Padding(1)
-        };
-
-        Label label = new Label
-        {
-            Text = text,
-            BackColor = Color.Transparent,
-            ForeColor = Color.White,
-            Font = new Font("Microsoft JhengHei", 11, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Dock = DockStyle.Fill
-        };
-
-        panel.Controls.Add(label);
-        tableMain.Controls.Add(panel, column, row);
-        tableMain.SetColumnSpan(panel, columnSpan);
-    }
-
-    // 建立欄位標題
-    private void AddHeader(string text, int column, int row, Color backColor)
-    {
-        Panel panel = new Panel
-        {
-            BackColor = backColor,
-            Margin = new Padding(1)
-        };
-
-        Label label = new Label
-        {
-            Text = text,
-            BackColor = Color.Transparent,
-            ForeColor = Color.Black,
-            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Dock = DockStyle.Fill
-        };
-
-        panel.Controls.Add(label);
-        tableMain.Controls.Add(panel, column, row);
-    }
-
-    // 建立程式名稱欄位 (深藍色背景)
-    private void AddProgramName(string text, int column, int row)
-    {
-        Panel panel = new Panel
-        {
-            BackColor = Color.DarkBlue,
-            Margin = new Padding(1)
-        };
-
-        Label label = new Label
-        {
-            Text = text,
-            BackColor = Color.Transparent,
-            ForeColor = Color.White,
-            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Dock = DockStyle.Fill,
-            Padding = new Padding(5, 0, 0, 0)
-        };
-
-        panel.Controls.Add(label);
-        tableMain.Controls.Add(panel, column, row);
-    }
-
-    // 建立一般資料欄位 (白色背景)
-    private void AddData(string text, int column, int row)
-    {
-        Panel panel = new Panel
-        {
-            BackColor = Color.White,
-            Margin = new Padding(1)
-        };
-
-        Label label = new Label
-        {
-            Text = text,
-            BackColor = Color.Transparent,
-            ForeColor = Color.Black,
-            Font = new Font("Microsoft JhengHei", 9),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Dock = DockStyle.Fill
-        };
-
-        panel.Controls.Add(label);
-        tableMain.Controls.Add(panel, column, row);
-    }
-
-    // 建立比對結果欄位 (白色背景，不同顏色文字)
-    private void AddResult(string text, int column, int row, Color textColor)
-    {
-        Panel panel = new Panel
-        {
-            BackColor = Color.White,
-            Margin = new Padding(1)
-        };
-
-        Label label = new Label
-        {
-            Text = text,
-            BackColor = Color.Transparent,
-            ForeColor = textColor,
-            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Dock = DockStyle.Fill
-        };
-
-        panel.Controls.Add(label);
-        tableMain.Controls.Add(panel, column, row);
+        
+        // 設定比對結果欄位樣式
+        dataGridView1.Rows[rowIndex].Cells[5].Style.BackColor = Color.White;
+        dataGridView1.Rows[rowIndex].Cells[5].Style.ForeColor = resultColor;
+        dataGridView1.Rows[rowIndex].Cells[5].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
+        dataGridView1.Rows[rowIndex].Cells[5].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
     }
 
     // 按鈕1：版本比對
@@ -196,72 +117,3 @@ InitializeComponent();
 ```
 
 }
-
-好的！讓我們重新開始，我會用更簡單清楚的方式指導您：
-
-## 重新開始的步驟：
-
-### 步驟 1: 清空 Form
-
-1. **開啟 Form1.cs (Design)**
-1. **選取所有控制項** (Ctrl+A)
-1. **刪除** (Delete 鍵)
-1. 現在應該是空白的 Form
-
-### 步驟 2: 按順序加入控制項
-
-**第一步：上方標題區**
-
-1. 從工具箱拖拉 **Panel** 到 Form 上方
-1. 設定 Panel 屬性：
-- `Name = panelTitle`
-- `Dock = Top`
-- `Height = 60`
-- `BackColor = DarkBlue` (藍色系)
-
-**第二步：標題文字**
-
-1. 從工具箱拖拉 **Label** **到 panelTitle 裡面**
-1. 設定 Label 屬性：
-- `Name = labelTitle`
-- `Text = SC 內 HIPOS 相關檔案比對`
-- `Dock = Fill`
-- `TextAlign = MiddleCenter`
-- `ForeColor = White`
-
-**第三步：中間表格區**
-
-1. 從工具箱拖拉 **TableLayoutPanel** 到 Form 中間
-1. 設定屬性：
-- `Name = tableMain`
-- `Dock = Fill`
-
-**第四步：底部按鈕區**
-
-1. 從工具箱拖拉 **Panel** 到 Form 底部
-1. 設定屬性：
-- `Name = panelButtons`
-- `Dock = Bottom`
-- `Height = 80`
-
-**第五步：說明區**
-
-1. 從工具箱拖拉 **Panel** 到 Form 最底部
-1. 設定屬性：
-- `Name = panelNotice`
-- `Dock = Bottom`
-- `Height = 120`
-- `BackColor = LightBlue` (藍色系)
-
-### 步驟 3: 確認控制項順序
-
-在設計器中，從上到下應該看到：
-
-1. panelTitle (藍色)
-1. tableMain (中間空白)
-1. panelButtons (底部)
-1. panelNotice (淺藍色)
-
-您先按照這個順序建立基本架構，確認位置都正確後，我再提供下一步的程式碼！
-
-建立好了嗎？有什麼問題嗎？​​​​​​​​​​​​​​​​
