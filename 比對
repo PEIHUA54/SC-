@@ -1,0 +1,35 @@
+比對工具 流程:
+執行1.版本比對
+button1 要做的事情是
+總部版本檔案跟門市版本檔案(讀SC檔案路徑)
+要去資料夾(有路徑)去讀hipossc_version.txt
+(測試路徑)D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\hipossc_version.txt
+去得總部版本資料sc.service、sc.web、sc.update 
+txt裡面內容會是這樣:
+FILE_NAME,FILE_MODFIY_TIME,FILE_SIZE
+SC.Service,2025-07-24 15:26:44.000,72192
+SC.Update,2021-08-27 10:22:00.000,25088
+SC.Web,2025-07-24 15:27:32.000,48128
+我要取檔案日期跟檔案大小
+再來是門市版本的三個檔案是分別有三個測試路徑
+1.D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Service.exe
+2.D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Update.exe
+3.D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\SC.Web.dll
+以上是測試路徑限用測試路徑
+但是也幫我加上正是要用的路徑
+e:\TC_SC\Service\SC.Service\ SC.Service.exe
+e:\TC_SC\App\SC.Update\ SC.Update.exe
+e:\TC_SC\Web\bin\ SC.Web.dll
+也是要取得檔案日期跟檔案大小
+這樣就可以顯示在畫面上 兩個的比對結果 是否為正確或不正確
+比對需要檔案日期跟檔案大小一致
+那若三個檔案比對結果皆為正確就可以執行3.清除設定檔資料
+BUTTON3就是執行 SQL=> 這段 DELETE FROM [FileModList]  刪除完畢可以有個友善提示字 已刪除完成
+那假設比對結果有不正確
+那就要執行步驟2.接收HIPOS最新版本與更新
+BUTTON2要做的事情就是 呼叫BAT檔-
+(測試路徑)D:\開發\3B750_沛樺\沛樺\SCFILE.zip\SCFILE\接收收銀機最新版本與更新.bat
+(正式路徑)E:\BAT\接收收銀機最新版本與更新.bat
+BUTTON2成功呼叫完.bat後，會在執行步驟1再比對一次，比對到完全正確為止
+那因為比對有不正確是不可以執行步驟3，所以BUTTON3需要先設為禁止點的模式
+必須要三個檔案皆為正確才可以進行步驟3的清除
