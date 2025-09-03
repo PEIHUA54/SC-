@@ -1,3 +1,202 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace HIPOSFileComparer
+{
+public partial class Form1 : Form
+{
+public Form1()
+{
+InitializeComponent();
+}
+
+```
+    private void Form1_Load(object sender, EventArgs e)
+    {
+        FillTableContent();
+    }
+
+    private void FillTableContent()
+    {
+        // 清空表格
+        tableMain.Controls.Clear();
+        
+        // 第0行：總部版本/門市版本標題 (深藍色)
+        AddMergedHeader("總部版本", 1, 0, 2, Color.Navy);
+        AddMergedHeader("門市版本", 3, 0, 2, Color.Navy);
+        
+        // 第1行：欄位標題 (淺藍色)
+        AddHeader("程式名稱", 0, 1, Color.LightSteelBlue);
+        AddHeader("檔案日期", 1, 1, Color.LightSteelBlue);
+        AddHeader("檔案大小", 2, 1, Color.LightSteelBlue);
+        AddHeader("檔案日期", 3, 1, Color.LightSteelBlue);
+        AddHeader("檔案大小", 4, 1, Color.LightSteelBlue);
+        AddHeader("比對結果", 5, 1, Color.LightSteelBlue);
+        
+        // 資料行
+        string[] programs = { "SC.Service", "SC.Web", "SC.Update" };
+        for (int i = 0; i < 3; i++)
+        {
+            int row = i + 2;
+            AddProgramName(programs[i], 0, row);
+            AddData("2025/7/24 下午 03:26:44", 1, row);
+            AddData("72192", 2, row);
+            AddData("2025/7/24 下午 03:26:44", 3, row);
+            AddData("72192", 4, row);
+            
+            if (i < 2)
+                AddResult("不正確", 5, row, Color.Red);
+            else
+                AddResult("正確", 5, row, Color.Green);
+        }
+    }
+
+    // 建立跨欄標題 (總部版本/門市版本)
+    private void AddMergedHeader(string text, int column, int row, int columnSpan, Color backColor)
+    {
+        Panel panel = new Panel
+        {
+            BackColor = backColor,
+            Margin = new Padding(1)
+        };
+
+        Label label = new Label
+        {
+            Text = text,
+            BackColor = Color.Transparent,
+            ForeColor = Color.White,
+            Font = new Font("Microsoft JhengHei", 11, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Dock = DockStyle.Fill
+        };
+
+        panel.Controls.Add(label);
+        tableMain.Controls.Add(panel, column, row);
+        tableMain.SetColumnSpan(panel, columnSpan);
+    }
+
+    // 建立欄位標題
+    private void AddHeader(string text, int column, int row, Color backColor)
+    {
+        Panel panel = new Panel
+        {
+            BackColor = backColor,
+            Margin = new Padding(1)
+        };
+
+        Label label = new Label
+        {
+            Text = text,
+            BackColor = Color.Transparent,
+            ForeColor = Color.Black,
+            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Dock = DockStyle.Fill
+        };
+
+        panel.Controls.Add(label);
+        tableMain.Controls.Add(panel, column, row);
+    }
+
+    // 建立程式名稱欄位 (深藍色背景)
+    private void AddProgramName(string text, int column, int row)
+    {
+        Panel panel = new Panel
+        {
+            BackColor = Color.DarkBlue,
+            Margin = new Padding(1)
+        };
+
+        Label label = new Label
+        {
+            Text = text,
+            BackColor = Color.Transparent,
+            ForeColor = Color.White,
+            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Dock = DockStyle.Fill,
+            Padding = new Padding(5, 0, 0, 0)
+        };
+
+        panel.Controls.Add(label);
+        tableMain.Controls.Add(panel, column, row);
+    }
+
+    // 建立一般資料欄位 (白色背景)
+    private void AddData(string text, int column, int row)
+    {
+        Panel panel = new Panel
+        {
+            BackColor = Color.White,
+            Margin = new Padding(1)
+        };
+
+        Label label = new Label
+        {
+            Text = text,
+            BackColor = Color.Transparent,
+            ForeColor = Color.Black,
+            Font = new Font("Microsoft JhengHei", 9),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Dock = DockStyle.Fill
+        };
+
+        panel.Controls.Add(label);
+        tableMain.Controls.Add(panel, column, row);
+    }
+
+    // 建立比對結果欄位 (白色背景，不同顏色文字)
+    private void AddResult(string text, int column, int row, Color textColor)
+    {
+        Panel panel = new Panel
+        {
+            BackColor = Color.White,
+            Margin = new Padding(1)
+        };
+
+        Label label = new Label
+        {
+            Text = text,
+            BackColor = Color.Transparent,
+            ForeColor = textColor,
+            Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Dock = DockStyle.Fill
+        };
+
+        panel.Controls.Add(label);
+        tableMain.Controls.Add(panel, column, row);
+    }
+
+    // 按鈕1：版本比對
+    private void button1_Click(object sender, EventArgs e)
+    {
+        MessageBox.Show("執行版本比對功能", "版本比對", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    // 按鈕2：接收 HIPOS 最新版本
+    private void button2_Click(object sender, EventArgs e)
+    {
+        MessageBox.Show("接收 HIPOS 最新版本與更新", "系統更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    // 按鈕3：清除設定檔資料
+    private void button3_Click(object sender, EventArgs e)
+    {
+        DialogResult result = MessageBox.Show("確定要清除設定檔資料嗎？", "清除確認", 
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        
+        if (result == DialogResult.Yes)
+        {
+            MessageBox.Show("設定檔資料已清除", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+}
+```
+
+}
+
 好的！讓我們重新開始，我會用更簡單清楚的方式指導您：
 
 ## 重新開始的步驟：
