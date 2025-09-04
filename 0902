@@ -1,3 +1,100 @@
+好的，這是 DataGridView 優化的程式碼片段：
+
+```csharp
+/// <summary>
+/// 設定 DataGridView 的外觀和欄位 - 優化版
+/// </summary>
+private void SetupDataGridView()
+{
+    try
+    {
+        // 清除預設欄位
+        dataGridView1.Columns.Clear();
+        
+        // 基本屬性設定
+        dataGridView1.AllowUserToAddRows = false;
+        dataGridView1.AllowUserToDeleteRows = false;
+        dataGridView1.ReadOnly = true;
+        dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        dataGridView1.MultiSelect = false;
+        dataGridView1.BackgroundColor = Color.White;
+        dataGridView1.GridColor = Color.Gray;
+        dataGridView1.BorderStyle = BorderStyle.Fixed3D;
+        
+        // 允許使用者調整欄位大小
+        dataGridView1.AllowUserToResizeColumns = true;
+        dataGridView1.AllowUserToResizeRows = false;
+        
+        // 建立欄位
+        dataGridView1.Columns.Add("ProgramName", "程式名稱");
+        dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
+        dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
+        dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
+        dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
+        dataGridView1.Columns.Add("Result", "比對結果");
+        
+        // 設定欄位寬度
+        dataGridView1.Columns[0].Width = 120;  // 程式名稱
+        dataGridView1.Columns[1].Width = 180;  // 總部日期
+        dataGridView1.Columns[2].Width = 100;  // 總部大小
+        dataGridView1.Columns[3].Width = 180;  // 門市日期
+        dataGridView1.Columns[4].Width = 100;  // 門市大小
+        dataGridView1.Columns[5].Width = 120;  // 比對結果
+        
+        // 設定標題列樣式
+        dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.DarkBlue;
+        dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+        dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei", 11, FontStyle.Bold);
+        dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        dataGridView1.ColumnHeadersHeight = 45;  // 增加標題高度
+        dataGridView1.RowTemplate.Height = 40;   // 增加資料列高度
+        
+        // 總部欄位背景 - 淺藍色系
+        dataGridView1.Columns[1].DefaultCellStyle.BackColor = Color.AliceBlue;      // 總部日期
+        dataGridView1.Columns[2].DefaultCellStyle.BackColor = Color.LightCyan;      // 總部大小
+        
+        // 門市欄位背景 - 淺綠色系  
+        dataGridView1.Columns[3].DefaultCellStyle.BackColor = Color.Honeydew;       // 門市日期
+        dataGridView1.Columns[4].DefaultCellStyle.BackColor = Color.LightGreen;     // 門市大小
+        
+        // 設定文字對齊和字體
+        dataGridView1.Columns[1].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        dataGridView1.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        dataGridView1.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        dataGridView1.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        dataGridView1.Columns[5].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        
+        // 程式名稱欄位特殊設定
+        dataGridView1.Columns[0].DefaultCellStyle.BackColor = Color.LightSteelBlue;
+        dataGridView1.Columns[0].DefaultCellStyle.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show("初始化表格時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+```
+
+## 主要優化：
+
+1. **格子大小調整**：
+- 標題高度：45px
+- 資料列高度：40px
+- 允許使用者拖拉調整欄寬
+1. **顏色區隔**：
+- 總部欄位：淺藍色系（AliceBlue、LightCyan）
+- 門市欄位：淺綠色系（Honeydew、LightGreen）
+- 程式名稱：淺鋼藍色（LightSteelBlue）
+1. **對齊優化**：
+- 日期：置中對齊
+- 檔案大小：靠右對齊（數字習慣）
+- 比對結果：置中對齊
+1. **使用者體驗**：
+- 可以手動調整欄寬
+- 立體邊框效果
+- 更大的點擊區域​​​​​​​​​​​​​​​​
+
+
 using System;
 using System.Drawing;
 using System.Windows.Forms;
