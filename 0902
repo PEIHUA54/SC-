@@ -31,8 +31,7 @@ private bool useTestPath = true;
     private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";                                // 正式門市 Web 檔案路徑
     private string prodBatPath = @"E:\BAT\接收收銀機最新版本與更新.bat";                          // 正式更新用批次檔路徑
 
-    // UI 控制項 - 比對時間顯示標籤
-    private Label labelCompareTime;
+    // UI 控制項 - 比對時間顯示標籤 (已在設計器中建立，變數名稱 labelCompareTime)
     #endregion
 
     #region 檔案資訊類別
@@ -44,34 +43,6 @@ private bool useTestPath = true;
         public string Name { get; set; }        // 檔案名稱
         public DateTime ModifyTime { get; set; } // 檔案修改時間
         public long FileSize { get; set; }       // 檔案大小
-    }
-
-    /// <summary>
-    /// 建立比對時間顯示標籤 - 顯示在 DataGridView 下方
-    /// </summary>
-    private void CreateCompareTimeLabel()
-    {
-        try
-        {
-            // 建立顯示比對時間的 Label
-            labelCompareTime = new Label();
-            labelCompareTime.Name = "labelCompareTime";
-            labelCompareTime.Text = "比對結果時間：尚未執行比對";
-            labelCompareTime.Font = new Font("Microsoft JhengHei", 10, FontStyle.Regular);
-            labelCompareTime.ForeColor = Color.DarkBlue;
-            labelCompareTime.AutoSize = true;
-            
-            // 設定位置 - 在 DataGridView 下方
-            labelCompareTime.Location = new Point(dataGridView1.Location.X, 
-                dataGridView1.Location.Y + dataGridView1.Height + 10);
-            
-            // 加入到 Form 中
-            this.Controls.Add(labelCompareTime);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show("建立比對時間標籤時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
     }
     #endregion
 
@@ -91,7 +62,7 @@ private bool useTestPath = true;
     {
         SetupDataGridView();     // 初始化資料表格
         InitializeButtons();     // 初始化按鈕狀態
-        CreateCompareTimeLabel(); // 建立比對時間顯示標籤
+        // labelCompareTime 已在設計器中建立，不需程式碼建立
     }
     #endregion
 
@@ -356,7 +327,8 @@ private bool useTestPath = true;
 
     #region 檔案讀取處理
     /// <summary>
-    /// 讀取總部版本檔案 - 解析 hipossc_version.txt
+    /// 讀取總部版本檔案 - 支援 CSV 格式
+    /// CSV 格式範例：FILE_NAME,FILE_MODFIY_TIME,FILE_SIZE
     /// </summary>
     /// <returns>檔案資訊陣列，包含三個檔案的資訊</returns>
     private FileInfo[] ReadServerVersionFile()
@@ -375,20 +347,29 @@ private bool useTestPath = true;
             string[] lines = File.ReadAllLines(versionPath);  // 讀取所有行
             FileInfo[] files = new FileInfo[3];               // 建立三個檔案的陣列
 
-            // 解析版本檔案內容 (跳過第一行標題)
-            for (int i = 1; i < lines.Length && i <= 3; i++)
+            // 判斷檔案格式 - 檢查第一行是否為標題行
+            int startIndex = 1; // 預設從第二行開始（跳過標題）
+            if (!lines[0].StartsWith("FILE_NAME") && !lines[0].Contains("FILE_MODFIY_TIME"))
             {
-                string[] parts = lines[i].Split(',');  // 以逗號分割
+                startIndex = 0; // 如果沒有標題行，從第一行開始
+            }
+
+            // 解析版本檔案內容
+            for (int i = startIndex; i < lines.Length && i - startIndex < 3; i++)
+            {
+                // 處理 CSV 格式 - 分割逗號，並處理可能的引號
+                string[] parts = SplitCSVLine(lines[i]);
+                
                 if (parts.Length >= 3)
                 {
-                    int index = GetFileIndex(parts[0]);  // 取得檔案索引
+                    int index = GetFileIndex(parts[0].Trim());  // 取得檔案索引，並去除空白
                     if (index >= 0)
                     {
                         files[index] = new FileInfo
                         {
-                            Name = parts[0],                        // 檔案名稱
-                            ModifyTime = DateTime.Parse(parts[1]),  // 檔案修改時間
-                            FileSize = long.Parse(parts[2])         // 檔案大小
+                            Name = parts[0].Trim(),                                    // 檔案名稱
+                            ModifyTime = ParseDateTime(parts[1].Trim()),              // 檔案修改時間
+                            FileSize = long.Parse(parts[2].Trim())                    // 檔案大小
                         };
                     }
                 }
@@ -400,6 +381,80 @@ private bool useTestPath = true;
         {
             MessageBox.Show("讀取總部版本檔案錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// 分割 CSV 行，處理逗號和引號的情況
+    /// </summary>
+    /// <param name="csvLine">CSV 行內容</param>
+    /// <returns>分割後的字串陣列</returns>
+    private string[] SplitCSVLine(string csvLine)
+    {
+        // 簡單的 CSV 分割，如果有引號包含的欄位可以用這個方法
+        var result = new List<string>();
+        bool inQuotes = false;
+        var currentField = new StringBuilder();
+
+        for (int i = 0; i < csvLine.Length; i++)
+        {
+            char c = csvLine[i];
+
+            if (c == '"' && (i == 0 || csvLine[i - 1] == ','))
+            {
+                inQuotes = true; // 開始引號
+            }
+            else if (c == '"' && inQuotes && (i == csvLine.Length - 1 || csvLine[i + 1] == ','))
+            {
+                inQuotes = false; // 結束引號
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                result.Add(currentField.ToString());
+                currentField.Clear();
+            }
+            else
+            {
+                currentField.Append(c);
+            }
+        }
+
+        result.Add(currentField.ToString());
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// 解析日期時間字串，支援多種格式
+    /// </summary>
+    /// <param name="dateTimeString">日期時間字串</param>
+    /// <returns>DateTime 物件</returns>
+    private DateTime ParseDateTime(string dateTimeString)
+    {
+        try
+        {
+            // 支援多種日期格式
+            string[] formats = {
+                "yyyy-MM-dd HH:mm:ss.fff",  // 2025-07-24 15:26:44.000
+                "yyyy-MM-dd HH:mm:ss",      // 2025-07-24 15:26:44
+                "yyyy/MM/dd HH:mm:ss",      // 2025/07/24 15:26:44
+                "MM/dd/yyyy HH:mm:ss",      // 07/24/2025 15:26:44
+                "dd/MM/yyyy HH:mm:ss"       // 24/07/2025 15:26:44
+            };
+
+            foreach (string format in formats)
+            {
+                if (DateTime.TryParseExact(dateTimeString, format, null, System.Globalization.DateTimeStyles.None, out DateTime result))
+                {
+                    return result;
+                }
+            }
+
+            // 如果都不符合，使用預設解析
+            return DateTime.Parse(dateTimeString);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"無法解析日期時間 '{dateTimeString}': {ex.Message}");
         }
     }
 
@@ -483,10 +538,27 @@ private bool useTestPath = true;
             if (serverFiles[i] != null && clientFiles[i] != null && 
                 clientFiles[i].ModifyTime != DateTime.MinValue)
             {
-                // 比對檔案修改時間和檔案大小是否完全相同
-                isCorrect = (serverFiles[i].ModifyTime == clientFiles[i].ModifyTime && 
-                           serverFiles[i].FileSize == clientFiles[i].FileSize);
+                // 使用精確的時間比對 - 忽略毫秒差異
+                bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
+                bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+                
+                isCorrect = timeMatches && sizeMatches;
                 result = isCorrect ? "正確" : "不正確";
+                
+                // 調試訊息 - 可選，用於排查問題
+                if (!isCorrect)
+                {
+                    string debugMsg = $"{GetFileNameByIndex(i)} 比對詳細：\n";
+                    debugMsg += $"總部時間：{serverFiles[i].ModifyTime:yyyy-MM-dd HH:mm:ss}\n";
+                    debugMsg += $"門市時間：{clientFiles[i].ModifyTime:yyyy-MM-dd HH:mm:ss}\n";
+                    debugMsg += $"時間相符：{timeMatches}\n";
+                    debugMsg += $"總部大小：{serverFiles[i].FileSize}\n";
+                    debugMsg += $"門市大小：{clientFiles[i].FileSize}\n";
+                    debugMsg += $"大小相符：{sizeMatches}";
+                    
+                    // 取消註解下面這行可以看到詳細比對資訊
+                    // MessageBox.Show(debugMsg, "比對詳細資訊", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             else
             {
@@ -516,6 +588,21 @@ private bool useTestPath = true;
         }
 
         return allCorrect;
+    }
+
+    /// <summary>
+    /// 比對兩個 DateTime，忽略毫秒差異和格式差異
+    /// </summary>
+    /// <param name="dt1">第一個時間</param>
+    /// <param name="dt2">第二個時間</param>
+    /// <returns>是否相同（精確到秒）</returns>
+    private bool CompareDateTime(DateTime dt1, DateTime dt2)
+    {
+        // 將兩個時間都轉換為相同格式，只比較到秒
+        DateTime time1 = new DateTime(dt1.Year, dt1.Month, dt1.Day, dt1.Hour, dt1.Minute, dt1.Second);
+        DateTime time2 = new DateTime(dt2.Year, dt2.Month, dt2.Day, dt2.Hour, dt2.Minute, dt2.Second);
+        
+        return time1 == time2;
     }
 
     /// <summary>
