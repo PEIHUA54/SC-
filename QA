@@ -1,30 +1,44 @@
-1.新增-比對結果時間，就是執行步驟1的時間，顯示在DATAGIRDVIEW下方
-然後步驟2更新完成後 不用自動去比對
-讓使用者自行在按BUTTON1
+要加LOG
+寫在跟EXE同一層
 
-2.連線字串
-參考前輩:
-   private static void OpenSqlConnectionLocalhost(SqlConnection connection)
-        {
-            string connectionString = GetConnectionStringLocal();
-            connection.ConnectionString = connectionString;
-            connection.Open();
-        }
-        static private string GetConnectionStringLocal()
-        {
-            return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582";
-        }
-        private void button3_Click(object sender, EventArgs e)
-        {
-            SqlConnection sConn = new SqlConnection();
-            OpenSqlConnectionLocalhost(sConn);
-            DataTable dt = new DataTable();
-            string sql = "DELETE FROM P_PLU ";
-            SqlDataAdapter Tb = new SqlDataAdapter(sql, sConn);
-            Tb.Fill(dt);
-            MessageBox.Show("作業完成");
-        }
+執行1 2 3 按鈕時各別寫入log紀錄在該程式資料夾內
+命名方式為YYYYMMDD_HIPOS檔案比對.log(name)
+內容記錄
 
-有在測試環境的資料庫hilife-tfs(SQL Server 15.0.4261.1 - pos)
-的[HI_TMMAIN].[dbo].[FileModList]
-這樣要怎麼改?
+YYYYMMDD_hh:mm:ss執行1.版本比對SC.Service結果:不正確
+YYYYMMDD_hh:mm:ss執行1.版本比對SC.Update結果:正確
+YYYYMMDD_hh:mm:ss執行1.版本比對SC.Web結果:正確
+
+YYYYMMDD_hh:mm:ss執行2.接收HIPOS最新版本與更新
+
+YYYYMMDD_hh:mm:ss執行3.清除設定檔資料
+
+以上動作每執行一次就記錄一次，累計寫入
+
+
+參考:
+using System;
+using System.IO;
+
+class Logger
+{
+    public static void WriteLog(string message)
+    {
+        // 取得 EXE 所在目錄
+        string exePath = AppDomain.CurrentDomain.BaseDirectory;
+
+        // 建立 Log 資料夾（與 EXE 同層）
+        string logFolder = Path.Combine(exePath, "Log");
+        if (!Directory.Exists(logFolder))
+            Directory.CreateDirectory(logFolder);
+
+        // 建立每日一檔的 LOG 檔案
+        string logFile = Path.Combine(logFolder, DateTime.Now.ToString("yyyyMMdd") + ".txt");
+
+        // 寫入 LOG
+        using (StreamWriter sw = File.AppendText(logFile))
+        {
+            sw.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+        }
+    }
+}
