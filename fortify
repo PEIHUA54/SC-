@@ -1,165 +1,295 @@
 // ============================================================================
-// 最快速SSL檢查 - 直接加到您現有的按鈕中
+// 根據SSL檢查結果的最終修復程式碼
 // ============================================================================
 
-private void button2_Click_1(object sender, EventArgs e)
+/// <summary>
+/// 修復後的安全資料庫連線方法
+/// </summary>
+/// <param name="connection">SQL 連線物件</param>
+private static void OpenSqlConnectionTest(SqlConnection connection)
 {
-// === 加入這段SSL快速檢查 ===
-CheckSslQuickly();
-
-```
 try
 {
-    // 您原本的程式碼...
-    string batPath = useTestPath ? testBatPath : prodBatPath;
-    
-    if (!File.Exists(batPath))
+string connectionString = GetConnectionStringTest();
+
+```
+    // 驗證連線字串不為空
+    if (string.IsNullOrWhiteSpace(connectionString))
     {
-        MessageBox.Show("找不到bat檔案：" + batPath, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return;
+        throw new InvalidOperationException("連線字串不能為空");
     }
+
+    // **根據SSL檢查結果的安全設定**
+    SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
     
-    // 其他原本的程式碼...
+    // 您的伺服器支援SSL，啟用加密傳輸
+    builder.Encrypt = true;
+    
+    // 由於憑證驗證失敗（自簽憑證），使用信任模式
+    builder.TrustServerCertificate = true;
+    
+    // 其他安全設定
+    builder.ConnectTimeout = 30;
+    builder.CommandTimeout = 60;
+    builder.Pooling = true;
+    builder.MinPoolSize = 1;
+    builder.MaxPoolSize = 100;
+    
+    connection.ConnectionString = builder.ConnectionString;
+    connection.Open();
+    
+    // **可選：記錄SSL使用狀況**
+    LogSslUsage(connection);
+}
+catch (SqlException ex)
+{
+    // 不洩露詳細錯誤資訊
+    throw new InvalidOperationException("資料庫連線失敗，請檢查網路連線或聯絡系統管理員");
 }
 catch (Exception ex)
 {
-    MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    throw new InvalidOperationException("系統錯誤，請聯絡系統管理員");
 }
 ```
 
 }
 
-// === 加入這個方法到您的Form中 ===
-private void CheckSslQuickly()
+/// <summary>
+/// 記錄SSL使用狀況（可選）
+/// </summary>
+/// <param name="connection"></param>
+private static void LogSslUsage(SqlConnection connection)
 {
 try
 {
-string result = “”;
+using (var command = new SqlCommand(
+“SELECT ENCRYPT_OPTION FROM sys.dm_exec_connections WHERE session_id = @@SPID”,
+connection))
+{
+var encryptOption = command.ExecuteScalar()?.ToString();
+if (encryptOption == “TRUE”)
+{
+// 成功使用SSL，記錄資訊
+System.Diagnostics.Debug.WriteLine(“資料庫連線已啟用SSL加密”);
+}
+}
+}
+catch
+{
+// 忽略日誌錯誤
+}
+}
+
+// ============================================================================
+// 修復密碼管理問題 - 從設定檔讀取
+// ============================================================================
+
+/// <summary>
+/// 修復後的連線字串取得方法（從設定檔讀取）
+/// </summary>
+/// <returns>安全的連線字串</returns>
+static private string GetConnectionStringTest()
+{
+try
+{
+#if DEBUG
+// 開發環境：從app.config讀取
+return ConfigurationManager.ConnectionStrings[“TestDatabase”]?.ConnectionString
+?? GetFallbackConnectionString(true);
+#else
+// 正式環境：從app.config讀取
+return ConfigurationManager.ConnectionStrings[“ProductionDatabase”]?.ConnectionString
+?? GetFallbackConnectionString(false);
+#endif
+}
+catch (Exception)
+{
+// 如果設定檔讀取失敗，使用備用方案
+return GetFallbackConnectionString(false);
+}
+}
+
+/// <summary>
+/// 備用連線字串（過渡期使用）
+/// </summary>
+/// <param name="isTest">是否為測試環境</param>
+/// <returns></returns>
+private static string GetFallbackConnectionString(bool isTest)
+{
+if (isTest)
+{
+// 測試環境備用連線字串（密碼已移除，需要在app.config中設定）
+return “Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;Integrated Security=false;User ID=pos;Encrypt=true;TrustServerCertificate=true;”;
+}
+else
+{
+// 正式環境備用連線字串（密碼已移除，需要在app.config中設定）
+return “Data Source=localhost;Initial Catalog=POSSC;Integrated Security=false;User ID=sa;Encrypt=true;TrustServerCertificate=true;”;
+}
+}
+
+// ============================================================================
+// app.config 設定檔內容
+// ============================================================================
+/*
+請在您的app.config檔案中加入以下內容：
+
+<?xml version="1.0" encoding="utf-8"?>
+
+<configuration>
+  <connectionStrings>
+    <!-- 測試環境連線字串 -->
+    <add name="TestDatabase" 
+         connectionString="Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=pos1;Encrypt=true;TrustServerCertificate=true;Connect Timeout=30;" 
+         providerName="System.Data.SqlClient" />
 
 ```
-    // 1. 測試基本連線
-    result += "=== SQL Server SSL 快速檢查 ===\n";
-    result += "測試伺服器: " + GetServerName() + "\n\n";
-    
-    // 2. 測試無SSL連線
-    bool basicConnection = TestConnection(false, false);
-    result += "1. 基本連線 (無SSL): " + (basicConnection ? "✓ 成功" : "✗ 失敗") + "\n";
-    
-    if (!basicConnection)
+<!-- 正式環境連線字串 -->
+<add name="ProductionDatabase" 
+     connectionString="Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582;Encrypt=true;TrustServerCertificate=true;Connect Timeout=30;" 
+     providerName="System.Data.SqlClient" />
+```
+
+  </connectionStrings>
+
+  <startup>
+    <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.7.2" />
+  </startup>
+</configuration>
+*/
+
+// ============================================================================
+// 設定檔加密方法（提高安全性）
+// ============================================================================
+
+/// <summary>
+/// 加密app.config中的連線字串（執行一次即可）
+/// </summary>
+public static void EncryptConnectionStrings()
+{
+try
+{
+Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+ConnectionStringsSection section = config.ConnectionStrings;
+
+```
+    if (!section.SectionInformation.IsProtected)
     {
-        result += "   → 基本連線失敗，請檢查網路或連線設定\n\n";
-        MessageBox.Show(result, "SSL檢查結果", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        return;
-    }
-    
-    // 3. 測試SSL連線 (信任憑證)
-    bool sslTrusted = TestConnection(true, true);
-    result += "2. SSL連線 (信任憑證): " + (sslTrusted ? "✓ 成功" : "✗ 失敗") + "\n";
-    
-    if (!sslTrusted)
-    {
-        result += "   → SQL Server 不支援SSL或SSL未啟用\n";
-        result += "   → 建議: 暫時保持 Encrypt=false\n\n";
-        MessageBox.Show(result, "SSL檢查結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        return;
-    }
-    
-    // 4. 測試SSL連線 (驗證憑證)
-    bool sslStrict = TestConnection(true, false);
-    result += "3. SSL連線 (驗證憑證): " + (sslStrict ? "✓ 成功" : "✗ 失敗") + "\n\n";
-    
-    // 5. 給出建議
-    result += "=== 建議設定 ===\n";
-    if (sslStrict)
-    {
-        result += "Encrypt = true\n";
-        result += "TrustServerCertificate = false\n";
-        result += "說明: 伺服器有有效SSL憑證，可使用最安全設定\n";
-    }
-    else if (sslTrusted)
-    {
-        result += "Encrypt = true\n";
-        result += "TrustServerCertificate = true\n";
-        result += "說明: 伺服器支援SSL但憑證無效，使用信任模式\n";
+        // 使用 RSA 加密連線字串區段
+        section.SectionInformation.ProtectSection("RsaProtectedConfigurationProvider");
+        config.Save(ConfigurationSaveMode.Modified);
+        ConfigurationManager.RefreshSection("connectionStrings");
+        
+        MessageBox.Show("連線字串已加密", "安全性提升", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
     else
     {
-        result += "Encrypt = false\n";
-        result += "TrustServerCertificate = false\n";
-        result += "說明: 伺服器不支援SSL，保持現有設定\n";
+        MessageBox.Show("連線字串已經是加密狀態", "資訊", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
-    
-    MessageBox.Show(result, "SSL檢查結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
 }
 catch (Exception ex)
 {
-    MessageBox.Show("SSL檢查過程發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    MessageBox.Show($"加密連線字串時發生錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
 ```
 
 }
 
-// === 加入這個輔助方法 ===
-private bool TestConnection(bool useSSL, bool trustCertificate)
+// ============================================================================
+// 使用範例
+// ============================================================================
+
+/// <summary>
+/// 使用修復後的連線方法
+/// </summary>
+private void TestDatabaseConnection()
 {
 try
 {
-string connectionString = GetConnectionStringTest();
-SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
+using (SqlConnection connection = new SqlConnection())
+{
+OpenSqlConnectionTest(connection);
 
 ```
-    builder.Encrypt = useSSL;
-    builder.TrustServerCertificate = trustCertificate;
-    builder.ConnectTimeout = 5; // 短逾時，快速測試
-    
-    using (SqlConnection connection = new SqlConnection(builder.ConnectionString))
-    {
-        connection.Open();
-        
-        // 如果使用SSL，驗證確實有加密
-        if (useSSL)
+        // 測試查詢
+        using (SqlCommand command = new SqlCommand("SELECT 1", connection))
         {
-            using (SqlCommand command = new SqlCommand(
-                "SELECT ENCRYPT_OPTION FROM sys.dm_exec_connections WHERE session_id = @@SPID", 
-                connection))
-            {
-                var encryptOption = command.ExecuteScalar()?.ToString();
-                return encryptOption == "TRUE";
-            }
+            var result = command.ExecuteScalar();
+            MessageBox.Show("資料庫連線測試成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
-        
-        return true;
     }
 }
-catch
+catch (Exception ex)
 {
-    return false;
+    MessageBox.Show($"資料庫連線測試失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
 ```
 
 }
 
-// === 加入這個輔助方法 ===
-private string GetServerName()
+// ============================================================================
+// 命令注入修復（額外的安全改進）
+// ============================================================================
+
+/// <summary>
+/// 修復後的bat檔執行方法
+/// </summary>
+private void ExecuteBatFileSecurely()
 {
 try
 {
-string connectionString = GetConnectionStringTest();
-SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
-return builder.DataSource + “ / “ + builder.InitialCatalog;
+string batPath = useTestPath ? testBatPath : prodBatPath;
+
+```
+    // 安全驗證
+    if (!IsValidBatPath(batPath))
+    {
+        MessageBox.Show("無效的bat檔案路徑", "安全警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+    
+    ProcessStartInfo startInfo = new ProcessStartInfo
+    {
+        FileName = "cmd.exe",
+        Arguments = $"/c \"{batPath}\"",
+        UseShellExecute = false,
+        CreateNoWindow = true,  // 在背景執行
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+
+    using (Process process = Process.Start(startInfo))
+    {
+        process.WaitForExit(5 * 60 * 1000); // 5分鐘逾時
+        
+        if (process.ExitCode == 0)
+        {
+            MessageBox.Show("版本更新完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else
+        {
+            MessageBox.Show("更新過程發生問題，請檢查", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
 }
-catch
+catch (Exception ex)
 {
-return “未知”;
+    MessageBox.Show($"執行更新時發生錯誤：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
+```
+
 }
 
-// === 您原本的方法保持不變 ===
-static private string GetConnectionStringTest()
+private bool IsValidBatPath(string batPath)
 {
-#if DEBUG
-return “Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=pos1”;
-#else
-return “Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582”;
-#endif
+if (string.IsNullOrWhiteSpace(batPath)) return false;
+if (!batPath.EndsWith(”.bat”, StringComparison.OrdinalIgnoreCase)) return false;
+if (!File.Exists(batPath)) return false;
+
+```
+// 確保在允許的目錄內
+string allowedDir = Path.GetDirectoryName(Application.ExecutablePath);
+return batPath.StartsWith(allowedDir, StringComparison.OrdinalIgnoreCase);
+```
+
 }
