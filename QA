@@ -1,17 +1,19 @@
+// ============================================================================
+// 簡化版Logger.cs（移除不必要的功能）
+// ============================================================================
+
 using System;
 using System.IO;
 
 namespace HIPOSFileComparer
 {
 /// <summary>
-/// 日誌記錄工具類別
-/// 負責將程式執行記錄寫入LOG檔案
+/// 日誌記錄工具類別 - 簡化版
 /// </summary>
 public class Logger
 {
 /// <summary>
 /// 寫入LOG記錄
-/// LOG檔案位置：程式目錄\Log\YYYYMMDD_HIPOS檔案比對.log
 /// </summary>
 /// <param name="message">要記錄的訊息</param>
 public static void WriteLog(string message)
@@ -27,11 +29,11 @@ string exePath = AppDomain.CurrentDomain.BaseDirectory;
             if (!Directory.Exists(logFolder))
                 Directory.CreateDirectory(logFolder);
 
-            // 建立每日一檔的 LOG 檔案，檔名格式：YYYYMMDD_HIPOS檔案比對.log
+            // 建立每日一檔的 LOG 檔案
             string logFileName = DateTime.Now.ToString("yyyyMMdd") + "_HIPOS檔案比對.log";
             string logFile = Path.Combine(logFolder, logFileName);
 
-            // 寫入 LOG，格式：YYYYMMDD_hh:mm:ss 訊息內容
+            // 寫入 LOG
             using (StreamWriter sw = File.AppendText(logFile))
             {
                 string timeStamp = DateTime.Now.ToString("yyyyMMdd_HH:mm:ss");
@@ -40,93 +42,77 @@ string exePath = AppDomain.CurrentDomain.BaseDirectory;
         }
         catch (Exception ex)
         {
-            // LOG寫入失敗時不影響主程式運作，但記錄到Debug輸出
             System.Diagnostics.Debug.WriteLine($"LOG寫入失敗：{ex.Message}");
         }
     }
-
-    /// <summary>
-    /// 寫入版本比對結果LOG
-    /// 格式：YYYYMMDD_hh:mm:ss 執行1.版本比對{檔案類型}結果:{結果}
-    /// </summary>
-    /// <param name="fileType">檔案類型 (SC.Service, SC.Web, SC.Update)</param>
-    /// <param name="result">比對結果 (正確, 不正確, 檔案遺失)</param>
-    public static void WriteComparisonLog(string fileType, string result)
-    {
-        string message = $"執行1.版本比對{fileType}結果:{result}";
-        WriteLog(message);
-    }
-
-    /// <summary>
-    /// 寫入按鈕執行LOG
-    /// 格式：YYYYMMDD_hh:mm:ss 執行{按鈕編號}.{動作}
-    /// </summary>
-    /// <param name="buttonNumber">按鈕編號 (1, 2, 3)</param>
-    /// <param name="action">執行動作描述</param>
-    public static void WriteButtonLog(int buttonNumber, string action)
-    {
-        string message = $"執行{buttonNumber}.{action}";
-        WriteLog(message);
-    }
-
-    /// <summary>
-    /// 寫入錯誤LOG
-    /// 格式：YYYYMMDD_hh:mm:ss 錯誤:{錯誤訊息}
-    /// </summary>
-    /// <param name="errorMessage">錯誤訊息</param>
-    public static void WriteErrorLog(string errorMessage)
-    {
-        string message = $"錯誤:{errorMessage}";
-        WriteLog(message);
-    }
-
-    /// <summary>
-    /// 寫入程式啟動LOG
-    /// </summary>
-    public static void WriteStartupLog()
-    {
-        string message = "程式啟動";
-        WriteLog(message);
-    }
-
-    /// <summary>
-    /// 寫入程式關閉LOG
-    /// </summary>
-    public static void WriteShutdownLog()
-    {
-        string message = "程式關閉";
-        WriteLog(message);
-    }
 }
 ```
 
-} 
+}
 
 // ============================================================================
-// Form1.cs 需要修改和新增的部分
+// 修正後的Form1.cs按鈕方法（直接在比對時記錄）
 // ============================================================================
 
-// 1. 在Form1_Load方法中加入程式啟動LOG
-private void Form1_Load(object sender, EventArgs e)
+// 修改CompareAndDisplay方法，在比對時直接記錄LOG
+private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
 {
-SetupDataGridView();     // 初始化資料表格
-InitializeButtons();     // 初始化按鈕狀態
+bool allCorrect = true;
 
 ```
-// **新增：記錄程式啟動LOG**
-Logger.WriteStartupLog();
+// 逐一比對三個檔案
+for (int i = 0; i < 3; i++)
+{
+    bool isCorrect = false;
+    string result = "不正確";
+    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
+
+    // 檢查總部和門市檔案是否都存在
+    if (serverFiles[i] != null && clientFiles[i] != null &&
+        clientFiles[i].ModifyTime != DateTime.MinValue)
+    {
+        // 使用精確的時間比對
+        bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
+        bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+
+        isCorrect = timeMatches && sizeMatches;
+        result = isCorrect ? "正確" : "不正確";
+    }
+    else
+    {
+        string missingFile = "";
+        if (serverFiles[i] == null) missingFile += "總部版本檔案遺失 ";
+        if (clientFiles[i] == null || clientFiles[i].ModifyTime == DateTime.MinValue)
+            missingFile += "門市檔案遺失";
+
+        MessageBox.Show($"{GetFileNameByIndex(i)} {missingFile}", "檔案遺失錯誤",
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+        result = "檔案遺失";
+    }
+
+    if (!isCorrect) allCorrect = false;
+
+    // **直接在這裡記錄比對結果LOG，避免重複比對**
+    Logger.WriteLog($"執行1.版本比對{fileType}結果:{result}");
+
+    // 將比對結果加入到 DataGridView 顯示
+    AddComparisonRow(
+        serverFiles[i]?.Name ?? GetFileNameByIndex(i),
+        serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
+        serverFiles[i]?.FileSize.ToString() ?? "無資料",
+        clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
+        clientFiles[i]?.FileSize.ToString() ?? "無資料",
+        result,
+        isCorrect ? Color.Green : Color.Red
+    );
+}
+
+return allCorrect;
 ```
 
 }
 
-// 2. 新增Form關閉事件（如果還沒有的話）
-private void Form1_FormClosed(object sender, FormClosedEventArgs e)
-{
-// **新增：記錄程式關閉LOG**
-Logger.WriteShutdownLog();
-}
-
-// 3. 修改button1_Click方法（版本比對）
+// 簡化後的button1_Click（移除重複的LogComparisonResults呼叫）
 private void button1_Click(object sender, EventArgs e)
 {
 try
@@ -141,7 +127,6 @@ this.Cursor = Cursors.WaitCursor;
     var serverFiles = ReadServerVersionFile();
     if (serverFiles == null)
     {
-        Logger.WriteErrorLog("無法讀取總部版本檔案");
         MessageBox.Show("無法讀取總部版本檔案！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         return;
     }
@@ -149,11 +134,8 @@ this.Cursor = Cursors.WaitCursor;
     // 讀取門市版本資訊
     var clientFiles = ReadClientFiles();
 
-    // 執行比對並更新顯示
+    // 執行比對並更新顯示（比對時已經自動記錄LOG了）
     bool allCorrect = CompareAndDisplay(serverFiles, clientFiles);
-
-    // **新增：記錄比對結果LOG**
-    LogComparisonResults(serverFiles, clientFiles);
 
     // 對應按鈕
     UpdateButtonStates(allCorrect);
@@ -165,7 +147,6 @@ this.Cursor = Cursors.WaitCursor;
 }
 catch (Exception ex)
 {
-    Logger.WriteErrorLog($"版本比對發生錯誤:{ex.Message}");
     MessageBox.Show("版本比對發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
 finally
@@ -177,30 +158,27 @@ finally
 
 }
 
-// 4. 修改button2_Click_1方法（接收更新）
+// 簡化後的button2_Click_1
 private void button2_Click_1(object sender, EventArgs e)
 {
 try
 {
-// **記錄按鈕2執行LOG**
-Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
+// **記錄按鈕執行**
+Logger.WriteLog(“執行2.接收HIPOS最新版本與更新”);
 
 ```
-    // 取得bat檔路徑 - 根據測試/正式模式選擇
+    // 取得bat檔路徑
     string batPath = useTestPath ? testBatPath : prodBatPath;
 
-    // 安全驗證bat檔路徑
+    // 安全檢查
     if (!IsValidBatPath(batPath))
     {
-        Logger.WriteErrorLog("bat檔路徑驗證失敗");
         MessageBox.Show("無效的bat檔案路徑", "安全警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         return;
     }
 
-    // 檢查bat檔是否存在
     if (!File.Exists(batPath))
     {
-        Logger.WriteErrorLog($"找不到bat檔案：{batPath}");
         MessageBox.Show("找不到bat檔案：" + Path.GetFileName(batPath), "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         return;
     }
@@ -208,7 +186,7 @@ Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
     button2.Enabled = false;
     this.Cursor = Cursors.WaitCursor;
 
-    // **修復Command Injection：使用更安全的執行方式**
+    // 執行bat檔
     ProcessStartInfo startInfo = new ProcessStartInfo
     {
         FileName = "cmd.exe",
@@ -220,18 +198,15 @@ Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
 
     using (Process process = Process.Start(startInfo))
     {
-        // 等待執行完成，但設定逾時
         bool finished = process.WaitForExit(5 * 60 * 1000); // 5分鐘逾時
         
         if (finished && process.ExitCode == 0)
         {
-            Logger.WriteLog("執行2.接收HIPOS最新版本與更新完成");
             MessageBox.Show("版本更新完成！請重新執行版本比對功能", "更新完成",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         else if (!finished)
         {
-            Logger.WriteErrorLog("更新程序執行逾時");
             MessageBox.Show("更新程序執行時間過長，請檢查是否有問題", "警告",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             if (!process.HasExited)
@@ -241,7 +216,6 @@ Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
         }
         else
         {
-            Logger.WriteErrorLog($"更新程序異常結束，錯誤代碼:{process.ExitCode}");
             MessageBox.Show("更新過程發生問題，請檢查bat檔案", "警告",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
@@ -249,7 +223,6 @@ Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
 }
 catch (Exception ex)
 {
-    Logger.WriteErrorLog($"接收HIPOS最新版本與更新發生錯誤:{ex.Message}");
     MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
 finally
@@ -261,20 +234,16 @@ finally
 
 }
 
-// 5. 修改button3_Click方法（清除設定檔）
+// 簡化後的button3_Click
 private void button3_Click(object sender, EventArgs e)
 {
 try
 {
-// **記錄按鈕3執行LOG**
-Logger.WriteButtonLog(3, “清除設定檔資料”);
+// **記錄按鈕執行**
+Logger.WriteLog(“執行3.清除設定檔資料”);
 
 ```
-    ExecuteDeleteSQL();  // 執行 SQL 刪除操作
-    
-    // 記錄清除完成LOG
-    Logger.WriteLog("執行3.清除設定檔資料完成");
-    
+    ExecuteDeleteSQL();
     MessageBox.Show("已刪除完成！", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     // 清除完成後重置按鈕狀態
@@ -282,100 +251,28 @@ Logger.WriteButtonLog(3, “清除設定檔資料”);
 }
 catch (Exception ex)
 {
-    Logger.WriteErrorLog($"清除設定檔資料發生錯誤:{ex.Message}");
     MessageBox.Show("清除設定檔時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
 ```
 
 }
 
-// ============================================================================
-// 新增的輔助方法
-// ============================================================================
-
-// 6. 新增：記錄版本比對結果的方法
-/// <summary>
-/// 記錄版本比對結果LOG
-/// </summary>
-/// <param name="serverFiles">總部檔案資訊</param>
-/// <param name="clientFiles">門市檔案資訊</param>
-private void LogComparisonResults(FileInfo[] serverFiles, FileInfo[] clientFiles)
-{
-try
-{
-// 比對三個檔案並記錄結果
-for (int i = 0; i < 3; i++)
-{
-bool isCorrect = false;
-string result = “不正確”;
-string fileType = “”;
-
-```
-        // 取得檔案類型名稱
-        switch (i)
-        {
-            case 0: fileType = "SC.Service"; break;
-            case 1: fileType = "SC.Web"; break;
-            case 2: fileType = "SC.Update"; break;
-        }
-
-        // 檢查總部和門市檔案是否都存在
-        if (serverFiles[i] != null && clientFiles[i] != null &&
-            clientFiles[i].ModifyTime != DateTime.MinValue)
-        {
-            // 比對時間和大小
-            bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
-            bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
-
-            isCorrect = timeMatches && sizeMatches;
-            result = isCorrect ? "正確" : "不正確";
-        }
-        else
-        {
-            result = "檔案遺失";
-        }
-
-        // 記錄比對結果LOG
-        Logger.WriteComparisonLog(fileType, result);
-    }
-}
-catch (Exception ex)
-{
-    Logger.WriteErrorLog($"記錄比對結果時發生錯誤:{ex.Message}");
-}
-```
-
-}
-
-// 7. 新增：bat檔路徑安全驗證方法
-/// <summary>
-/// 驗證bat檔路徑是否安全
-/// </summary>
-/// <param name="batPath">bat檔路徑</param>
-/// <returns>是否安全</returns>
+// bat檔安全驗證方法（保留）
 private bool IsValidBatPath(string batPath)
 {
 try
 {
-// 檢查路徑是否為空或null
-if (string.IsNullOrWhiteSpace(batPath))
-return false;
+if (string.IsNullOrWhiteSpace(batPath)) return false;
 
 ```
-    // 檢查是否為.bat或.cmd檔案
     string extension = Path.GetExtension(batPath).ToLowerInvariant();
-    if (extension != ".bat" && extension != ".cmd")
-        return false;
-
-    // 檢查路徑是否包含危險字符
+    if (extension != ".bat" && extension != ".cmd") return false;
+    
     char[] invalidChars = { '|', '&', ';', '<', '>', '^' };
-    if (batPath.IndexOfAny(invalidChars) != -1)
-        return false;
-
-    // 檢查是否為絕對路徑
-    if (!Path.IsPathRooted(batPath))
-        return false;
-
+    if (batPath.IndexOfAny(invalidChars) != -1) return false;
+    
+    if (!Path.IsPathRooted(batPath)) return false;
+    
     return true;
 }
 catch
@@ -385,5 +282,4 @@ catch
 ```
 
 }
-
 
