@@ -1,0 +1,72 @@
+Command Injection (1 issue)
+
+  private void button2_Click_1(object sender, EventArgs e)
+  {
+      try
+      {
+          // 取得bat檔路徑 - 根據測試/正式模式選擇
+          string batPath = useTestPath ? testBatPath : prodBatPath;
+
+          // 檢查bat檔是否存在
+          if (!File.Exists(batPath))
+          {
+              MessageBox.Show("找不到bat檔案：" + batPath, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+              return;
+          }
+
+          button2.Enabled = false;              // 更新期間禁用按鈕
+          this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
+
+          // 建立並執行bat檔程序
+          ProcessStartInfo startInfo = new ProcessStartInfo
+          {
+              FileName = batPath,                // bat檔路徑 fortify 問題low
+              UseShellExecute = true,           // 使用系統 Shell 執行
+              WindowStyle = ProcessWindowStyle.Normal // 顯示執行視窗
+          };
+
+          Process process = Process.Start(startInfo);  //這句是甚麼 意思
+          //process.WaitForExit(); // 等待bat檔執行完成   //這句是甚麼 意思 
+
+          MessageBox.Show("請等待版本更新，更新完成後再重新執行版本比對功能!", "版本更新中",
+              MessageBoxButtons.OK, MessageBoxIcon.Information);
+      }
+      catch (Exception ex)
+      {
+          MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+      }
+      finally
+      {
+          button2.Enabled = true;               // 恢復按鈕可用狀態
+          this.Cursor = Cursors.Default;        // 恢復正常游標
+      }
+  }
+
+Insecure Transport: Database (1 issue)
+
+ /// <summary>
+ /// 開啟測試環境資料庫連線 
+ /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
+ /// </summary>
+ /// <param name="connection">SQL 連線物件</param>
+ private static void OpenSqlConnectionTest(SqlConnection connection)
+ {
+     string connectionString = GetConnectionStringTest();
+     connection.ConnectionString = connectionString;  //fortify 問題 critical
+     connection.Open();
+ }
+
+Password Management: Password in Comment (1 issue)
+
+                /// <summary>
+                /// 取得測試環境資料庫連線字串 
+                /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
+                /// </summary>
+                /// <returns>測試環境資料庫連線字串</returns>
+                static private string GetConnectionStringTest()
+                {
+        #if DEBUG
+                    return "Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=pos1";
+        #else
+                    return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582";  //fortify 問題low
+        #endif
