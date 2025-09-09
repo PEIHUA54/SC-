@@ -1,72 +1,271 @@
-Command Injection (1 issue)
+// ============================================================================
+// 1. Command Injection 修復方案
+// ============================================================================
 
-  private void button2_Click_1(object sender, EventArgs e)
-  {
-      try
-      {
-          // 取得bat檔路徑 - 根據測試/正式模式選擇
-          string batPath = useTestPath ? testBatPath : prodBatPath;
+private void button2_Click_1(object sender, EventArgs e)
+{
+try
+{
+// 取得bat檔路徑 - 根據測試/正式模式選擇
+string batPath = useTestPath ? testBatPath : prodBatPath;
 
-          // 檢查bat檔是否存在
-          if (!File.Exists(batPath))
-          {
-              MessageBox.Show("找不到bat檔案：" + batPath, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-              return;
-          }
+```
+    // **安全改進：驗證bat檔路徑**
+    if (!IsValidBatPath(batPath))
+    {
+        MessageBox.Show("無效的bat檔案路徑", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
 
-          button2.Enabled = false;              // 更新期間禁用按鈕
-          this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
+    // 檢查bat檔是否存在
+    if (!File.Exists(batPath))
+    {
+        MessageBox.Show("找不到bat檔案：" + Path.GetFileName(batPath), "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
 
-          // 建立並執行bat檔程序
-          ProcessStartInfo startInfo = new ProcessStartInfo
-          {
-              FileName = batPath,                // bat檔路徑 fortify 問題low
-              UseShellExecute = true,           // 使用系統 Shell 執行
-              WindowStyle = ProcessWindowStyle.Normal // 顯示執行視窗
-          };
+    button2.Enabled = false;
+    this.Cursor = Cursors.WaitCursor;
 
-          Process process = Process.Start(startInfo);  //這句是甚麼 意思
-          //process.WaitForExit(); // 等待bat檔執行完成   //這句是甚麼 意思 
+    // **修復Command Injection：使用更安全的執行方式**
+    ProcessStartInfo startInfo = new ProcessStartInfo
+    {
+        FileName = "cmd.exe",                    // 明確指定執行程式
+        Arguments = $"/c \"{batPath}\"",         // 使用引號包圍路徑
+        UseShellExecute = false,                 // 改為false以提高安全性
+        CreateNoWindow = false,                  // 根據需求調整
+        WindowStyle = ProcessWindowStyle.Normal,
+        WorkingDirectory = Path.GetDirectoryName(batPath) // 設定工作目錄
+    };
 
-          MessageBox.Show("請等待版本更新，更新完成後再重新執行版本比對功能!", "版本更新中",
-              MessageBoxButtons.OK, MessageBoxIcon.Information);
-      }
-      catch (Exception ex)
-      {
-          MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      }
-      finally
-      {
-          button2.Enabled = true;               // 恢復按鈕可用狀態
-          this.Cursor = Cursors.Default;        // 恢復正常游標
-      }
-  }
+    Process process = Process.Start(startInfo);
+    
+    // Process.Start() 的意思：啟動一個新的程序來執行指定的程式
+    // 這會開始執行bat檔案，但不會等待執行完成就繼續執行下面的程式碼
+    
+    // process.WaitForExit() 的意思：等待程序完全執行完成後才繼續
+    // 如果需要等待bat執行完成再繼續，可以取消註解這行
 
-Insecure Transport: Database (1 issue)
+    MessageBox.Show("請等待版本更新，更新完成後再重新執行版本比對功能!", "版本更新中",
+        MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
+catch (Exception ex)
+{
+    MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+}
+finally
+{
+    button2.Enabled = true;
+    this.Cursor = Cursors.Default;
+}
+```
 
- /// <summary>
- /// 開啟測試環境資料庫連線 
- /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
- /// </summary>
- /// <param name="connection">SQL 連線物件</param>
- private static void OpenSqlConnectionTest(SqlConnection connection)
- {
-     string connectionString = GetConnectionStringTest();
-     connection.ConnectionString = connectionString;  //fortify 問題 critical
-     connection.Open();
- }
+}
 
-Password Management: Password in Comment (1 issue)
+// **新增：路徑驗證方法**
+private bool IsValidBatPath(string batPath)
+{
+try
+{
+// 檢查路徑是否為空或null
+if (string.IsNullOrWhiteSpace(batPath))
+return false;
 
-                /// <summary>
-                /// 取得測試環境資料庫連線字串 
-                /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
-                /// </summary>
-                /// <returns>測試環境資料庫連線字串</returns>
-                static private string GetConnectionStringTest()
-                {
-        #if DEBUG
-                    return "Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=pos1";
-        #else
-                    return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582";  //fortify 問題low
-        #endif
+```
+    // 檢查是否為.bat或.cmd檔案
+    string extension = Path.GetExtension(batPath).ToLowerInvariant();
+    if (extension != ".bat" && extension != ".cmd")
+        return false;
+
+    // 檢查路徑是否包含危險字符
+    char[] invalidChars = { '|', '&', ';', '<', '>', '^' };
+    if (batPath.IndexOfAny(invalidChars) != -1)
+        return false;
+
+    // 檢查是否為絕對路徑且在允許的目錄內
+    if (!Path.IsPathRooted(batPath))
+        return false;
+
+    // 可以進一步限制只能執行特定目錄下的bat檔
+    string allowedDirectory = Path.GetDirectoryName(Application.ExecutablePath);
+    if (!batPath.StartsWith(allowedDirectory, StringComparison.OrdinalIgnoreCase))
+        return false;
+
+    return true;
+}
+catch
+{
+    return false;
+}
+```
+
+}
+
+// ============================================================================
+// 2. Insecure Transport: Database 修復方案
+// ============================================================================
+
+/// <summary>
+/// 開啟測試環境資料庫連線
+/// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
+/// </summary>
+/// <param name="connection">SQL 連線物件</param>
+private static void OpenSqlConnectionTest(SqlConnection connection)
+{
+try
+{
+string connectionString = GetConnectionStringTest();
+
+```
+    // **安全改進：驗證連線字串**
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("連線字串不能為空");
+    }
+
+    // **安全改進：確保使用加密連線**
+    SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
+    builder.Encrypt = true;  // 強制使用SSL/TLS加密
+    builder.TrustServerCertificate = false;  // 驗證伺服器憑證
+    builder.ConnectTimeout = 30;  // 設定連線逾時
+    
+    connection.ConnectionString = builder.ConnectionString;
+    connection.Open();
+}
+catch (SqlException ex)
+{
+    // 記錄錯誤但不要洩露敏感資訊
+    throw new InvalidOperationException("資料庫連線失敗", ex);
+}
+```
+
+}
+
+// ============================================================================
+// 3. Password Management: Password in Comment 修復方案
+// ============================================================================
+
+/// <summary>
+/// 取得測試環境資料庫連線字串
+/// 連接到資料庫伺服器
+/// </summary>
+/// <returns>資料庫連線字串</returns>
+static private string GetConnectionStringTest()
+{
+// **修復方案1：從設定檔讀取**
+return GetConnectionStringFromConfig();
+
+```
+// **修復方案2：從環境變數讀取**
+// return GetConnectionStringFromEnvironment();
+
+// **修復方案3：從加密設定讀取**
+// return GetConnectionStringFromEncryptedConfig();
+```
+
+}
+
+// **方案1：從app.config讀取連線字串**
+private static string GetConnectionStringFromConfig()
+{
+try
+{
+#if DEBUG
+return ConfigurationManager.ConnectionStrings[“TestDatabase”]?.ConnectionString
+?? throw new ConfigurationErrorsException(“找不到測試資料庫連線字串”);
+#else
+return ConfigurationManager.ConnectionStrings[“ProductionDatabase”]?.ConnectionString
+?? throw new ConfigurationErrorsException(“找不到正式資料庫連線字串”);
+#endif
+}
+catch (Exception ex)
+{
+throw new InvalidOperationException(“無法取得資料庫連線字串”, ex);
+}
+}
+
+// **方案2：從環境變數讀取**
+private static string GetConnectionStringFromEnvironment()
+{
+try
+{
+#if DEBUG
+string server = Environment.GetEnvironmentVariable(“DB_TEST_SERVER”) ?? “localhost”;
+string database = Environment.GetEnvironmentVariable(“DB_TEST_DATABASE”) ?? “TestDB”;
+string userId = Environment.GetEnvironmentVariable(“DB_TEST_USER”) ?? “testuser”;
+string password = Environment.GetEnvironmentVariable(“DB_TEST_PASSWORD”) ?? “”;
+#else
+string server = Environment.GetEnvironmentVariable(“DB_PROD_SERVER”) ?? “localhost”;
+string database = Environment.GetEnvironmentVariable(“DB_PROD_DATABASE”) ?? “ProdDB”;
+string userId = Environment.GetEnvironmentVariable(“DB_PROD_USER”) ?? “produser”;
+string password = Environment.GetEnvironmentVariable(“DB_PROD_PASSWORD”) ?? “”;
+#endif
+
+```
+    if (string.IsNullOrWhiteSpace(password))
+    {
+        throw new InvalidOperationException("資料庫密碼未設定");
+    }
+
+    return $"Data Source={server};Initial Catalog={database};User ID={userId};Password={password};Encrypt=true;TrustServerCertificate=false;";
+}
+catch (Exception ex)
+{
+    throw new InvalidOperationException("無法從環境變數取得連線資訊", ex);
+}
+```
+
+}
+
+// **方案3：從加密設定檔讀取**
+private static string GetConnectionStringFromEncryptedConfig()
+{
+try
+{
+// 使用 .NET 的保護設定功能來加密連線字串
+Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+ConnectionStringsSection section = config.ConnectionStrings;
+
+```
+    // 如果設定檔未加密，則進行加密
+    if (!section.SectionInformation.IsProtected)
+    {
+        section.SectionInformation.ProtectSection("RsaProtectedConfigurationProvider");
+        config.Save();
+    }
+```
+
+#if DEBUG
+return ConfigurationManager.ConnectionStrings[“TestDatabase”]?.ConnectionString
+?? throw new ConfigurationErrorsException(“找不到測試資料庫連線字串”);
+#else
+return ConfigurationManager.ConnectionStrings[“ProductionDatabase”]?.ConnectionString
+?? throw new ConfigurationErrorsException(“找不到正式資料庫連線字串”);
+#endif
+}
+catch (Exception ex)
+{
+throw new InvalidOperationException(“無法從加密設定檔取得連線字串”, ex);
+}
+}
+
+// ============================================================================
+// 需要在 app.config 中加入的設定範例
+// ============================================================================
+
+/*
+在 app.config 中加入：
+
+<?xml version="1.0" encoding="utf-8"?>
+
+<configuration>
+  <connectionStrings>
+    <add name="TestDatabase" 
+         connectionString="Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=your_password_here;Encrypt=true;TrustServerCertificate=false;" 
+         providerName="System.Data.SqlClient" />
+    <add name="ProductionDatabase" 
+         connectionString="Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=your_password_here;Encrypt=true;TrustServerCertificate=false;" 
+         providerName="System.Data.SqlClient" />
+  </connectionStrings>
+</configuration>
+*/
