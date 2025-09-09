@@ -1,740 +1,378 @@
-要加LOG
-寫在跟EXE同一層
+// ============================================================================
+// LOG記錄功能類別
+// ============================================================================
 
-執行1 2 3 按鈕時各別寫入log紀錄在該程式資料夾內
-命名方式為YYYYMMDD_HIPOS檔案比對.log(name)
-內容記錄
-
-YYYYMMDD_hh:mm:ss執行1.版本比對SC.Service結果:不正確
-YYYYMMDD_hh:mm:ss執行1.版本比對SC.Update結果:正確
-YYYYMMDD_hh:mm:ss執行1.版本比對SC.Web結果:正確
-
-YYYYMMDD_hh:mm:ss執行2.接收HIPOS最新版本與更新
-
-YYYYMMDD_hh:mm:ss執行3.清除設定檔資料
-
-以上動作每執行一次就記錄一次，累計寫入
-
-
-參考:
 using System;
 using System.IO;
 
-class Logger
+/// <summary>
+/// 日誌記錄工具類別
+/// </summary>
+public class Logger
 {
-    public static void WriteLog(string message)
-    {
-        // 取得 EXE 所在目錄
-        string exePath = AppDomain.CurrentDomain.BaseDirectory;
+/// <summary>
+/// 寫入LOG記錄
+/// </summary>
+/// <param name="message">要記錄的訊息</param>
+public static void WriteLog(string message)
+{
+try
+{
+// 取得 EXE 所在目錄
+string exePath = AppDomain.CurrentDomain.BaseDirectory;
 
+```
         // 建立 Log 資料夾（與 EXE 同層）
         string logFolder = Path.Combine(exePath, "Log");
         if (!Directory.Exists(logFolder))
             Directory.CreateDirectory(logFolder);
 
-        // 建立每日一檔的 LOG 檔案
-        string logFile = Path.Combine(logFolder, DateTime.Now.ToString("yyyyMMdd") + ".txt");
+        // 建立每日一檔的 LOG 檔案，檔名格式：YYYYMMDD_HIPOS檔案比對.log
+        string logFileName = DateTime.Now.ToString("yyyyMMdd") + "_HIPOS檔案比對.log";
+        string logFile = Path.Combine(logFolder, logFileName);
 
-        // 寫入 LOG
+        // 寫入 LOG，格式：YYYYMMDD_hh:mm:ss 訊息內容
         using (StreamWriter sw = File.AppendText(logFile))
         {
-            sw.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+            string timeStamp = DateTime.Now.ToString("yyyyMMdd_HH:mm:ss");
+            sw.WriteLine($"{timeStamp} {message}");
         }
     }
-}
-
-
-//程式碼
-using System;
-using System.Drawing;
-using System.Windows.Forms;
-using System.IO;
-using System.Diagnostics;
-using System.Data.SqlClient;
-using System.Data;
-using System.Collections.Generic;
-using System.Text;
-
-namespace HIPOSFileComparer
-{
-    public partial class Form1 : Form
+    catch (Exception ex)
     {
-        #region 路徑設定變數
-        /// <summary>
-        /// 測試/正式模式開關，true=測試模式，false=正式模式
-        /// </summary>
-
-#if DEBUG
-        private bool useTestPath = true;
-#else
-                private bool useTestPath= false;
-#endif
-        // 測試路徑設定 
-        private string testVersionPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SCFILE\hipossc_version.txt";      // 總部版本檔案路徑
-        private string testServicePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SCFILE\SC.Service.exe";           // 門市 Service 檔案路徑
-        private string testUpdatePath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SCFILE\SC.Update.exe";             // 門市 Update 檔案路徑
-        private string testWebPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SCFILE\SC.Web.dll";                   // 門市 Web 檔案路徑
-        private string testBatPath = @"D:\開發\3B750_沛樺\沛樺\SCFILE\SCFILE\接收收銀機最新版本與更新.bat";    // 更新用bat檔路徑
-
-        // 正式路徑設定
-        private string prodVersionPath = @"e:\HIPOSSC_VerCompare_TOOL\hipossc_version.txt";          // 正式總部版本檔案路徑
-        private string prodServicePath = @"e:\TC_SC\Service\SC.Service\SC.Service.exe";              // 正式門市 Service 檔案路徑
-        private string prodUpdatePath = @"e:\TC_SC\App\SC.Update\SC.Update.exe";                     // 正式門市 Update 檔案路徑
-        private string prodWebPath = @"e:\TC_SC\Web\bin\SC.Web.dll";                                 // 正式門市 Web 檔案路徑
-        private string prodBatPath = @"E:\BAT\接收收銀機最新版本與更新.bat";                            // 正式更新用bat檔路徑
-        #endregion
-
-        #region 檔案資訊類別
-        public class FileInfo
-        {
-            public string Name { get; set; }         // 檔案名稱
-            public DateTime ModifyTime { get; set; } // 檔案修改時間
-            public long FileSize { get; set; }       // 檔案大小
-        }
-        #endregion
-
-        #region Form 初始化
-        public Form1()
-        {
-            InitializeComponent();
-            System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
-            System.Diagnostics.FileVersionInfo fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
-            string version = fvi.FileVersion;
-            this.Text = "HIPOS檔案比對工具     版號:[" + version + "]";
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            SetupDataGridView();     // 初始化資料表格
-            InitializeButtons();     // 初始化按鈕狀態
-        }
-        #endregion
-
-        #region DataGridView 設定
-        private void SetupDataGridView()
-        {
-            try
-            {
-                // 清除預設欄位
-                dataGridView1.Columns.Clear();
-
-                // 基本屬性設定
-                dataGridView1.AllowUserToAddRows = false;
-                dataGridView1.AllowUserToDeleteRows = false;
-                dataGridView1.ReadOnly = true;
-                dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-                dataGridView1.MultiSelect = false;
-                dataGridView1.BackgroundColor = Color.White;
-                dataGridView1.GridColor = Color.Gray;
-                dataGridView1.BorderStyle = BorderStyle.Fixed3D;
-
-                // 允許使用者調整欄位大小
-                dataGridView1.AllowUserToResizeColumns = true;
-                dataGridView1.AllowUserToResizeRows = false;
-
-                // 建立欄位
-                dataGridView1.Columns.Add("ProgramName", "程式名稱");
-                dataGridView1.Columns.Add("ServerDate", "檔案日期(總部)");
-                dataGridView1.Columns.Add("ServerSize", "檔案大小(總部)");
-                dataGridView1.Columns.Add("ClientDate", "檔案日期(門市)");
-                dataGridView1.Columns.Add("ClientSize", "檔案大小(門市)");
-                dataGridView1.Columns.Add("Result", "比對結果");
-
-                // 設定欄位寬度
-                dataGridView1.Columns[0].Width = 120;  // 程式名稱
-                dataGridView1.Columns[1].Width = 180;  // 總部日期
-                dataGridView1.Columns[2].Width = 150;  // 總部大小
-                dataGridView1.Columns[3].Width = 180;  // 門市日期
-                dataGridView1.Columns[4].Width = 150;  // 門市大小
-                dataGridView1.Columns[5].Width = 120;  // 比對結果
-
-                // 設定標題列樣式
-                dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.DarkBlue;
-                dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-                dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei", 11, FontStyle.Bold);
-                dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                dataGridView1.ColumnHeadersHeight = 45;  // 增加標題高度
-                dataGridView1.RowTemplate.Height = 40;   // 增加資料列高度
-
-                // 總部欄位背景 - 淺藍色系
-                dataGridView1.Columns[1].DefaultCellStyle.BackColor = Color.AliceBlue;      // 總部日期
-                dataGridView1.Columns[2].DefaultCellStyle.BackColor = Color.LightCyan;      // 總部大小
-
-                // 門市欄位背景 - 淺綠色系  
-                dataGridView1.Columns[3].DefaultCellStyle.BackColor = Color.Honeydew;       // 門市日期
-                dataGridView1.Columns[4].DefaultCellStyle.BackColor = Color.LightGreen;     // 門市大小
-
-                // 設定文字對齊和字體
-                dataGridView1.Columns[1].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                dataGridView1.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-                dataGridView1.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                dataGridView1.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-                dataGridView1.Columns[5].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-
-                // 程式名稱欄位特殊設定
-                dataGridView1.Columns[0].DefaultCellStyle.BackColor = Color.LightSteelBlue;
-                dataGridView1.Columns[0].DefaultCellStyle.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("初始化表格時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-        #endregion
-
-        #region 按鈕狀態控制
-        private void InitializeButtons()
-        {
-            button1.Enabled = true;  // 版本比對 - 可用
-            button2.Enabled = false; // 接收更新 - 禁用
-            button3.Enabled = false; // 清除設定檔 - 禁用
-        }
-
-        /// <param name="allCorrect">是否全部比對正確</param>
-        private void UpdateButtonStates(bool allCorrect)
-        {
-            if (allCorrect)
-            {
-                // 全部正確：可以清除設定檔，不需要更新
-                button2.Enabled = false; // 不需要更新
-                button3.Enabled = true;  // 可以清除設定檔
-            }
-            else
-            {
-                // 有不正確：需要更新，不能清除設定檔
-                button2.Enabled = true;  // 需要更新
-                button3.Enabled = false; // 不能清除設定檔
-            }
-        }
-        #endregion
-
-        #region 按鈕事件處理
-        private void button1_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                button1.Enabled = false;              // 比對期間禁用按鈕
-                this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
-
-                dataGridView1.Rows.Clear();           // 清空現有資料
-
-                // 讀取總部版本資訊
-                var serverFiles = ReadServerVersionFile();
-                if (serverFiles == null)
-                {
-                    MessageBox.Show("無法讀取總部版本檔案！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                // 讀取門市版本資訊
-                var clientFiles = ReadClientFiles();
-
-                // 執行比對並更新顯示
-                bool allCorrect = CompareAndDisplay(serverFiles, clientFiles);
-
-                // 對應按鈕
-                UpdateButtonStates(allCorrect);
-
-                // 更新比對時間顯示
-                labelCompareTime.Text = "比對執行時間：" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
-
-                MessageBox.Show("版本比對完成！", "比對結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("版本比對發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                button1.Enabled = true;               // 恢復按鈕可用狀態
-                this.Cursor = Cursors.Default;        // 恢復正常游標
-            }
-        }
-
-        private void button2_Click_1(object sender, EventArgs e)
-        {
-            try
-            {
-                // 取得bat檔路徑 - 根據測試/正式模式選擇
-                string batPath = useTestPath ? testBatPath : prodBatPath;
-
-                // 檢查bat檔是否存在
-                if (!File.Exists(batPath))
-                {
-                    MessageBox.Show("找不到bat檔案：" + batPath, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                button2.Enabled = false;              // 更新期間禁用按鈕
-                this.Cursor = Cursors.WaitCursor;     // 顯示等待游標
-
-                // 建立並執行bat檔程序
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = batPath,                // bat檔路徑
-                    UseShellExecute = true,           // 使用系統 Shell 執行
-                    WindowStyle = ProcessWindowStyle.Normal // 顯示執行視窗
-                };
-
-                Process process = Process.Start(startInfo);
-                //process.WaitForExit(); // 等待bat檔執行完成
-
-                MessageBox.Show("請等待版本更新，更新完成後再重新執行版本比對功能!", "版本更新中",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // 自動重新比對
-                // button1_Click(sender, e);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                button2.Enabled = true;               // 恢復按鈕可用狀態
-                this.Cursor = Cursors.Default;        // 恢復正常游標
-            }
-        }
-
-        private void button3_Click(object sender, EventArgs e)
-        {
-            // 確認對話框
-            //DialogResult result = MessageBox.Show("確定要清除設定檔資料嗎？", "清除確認",
-            //    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            //if (result == DialogResult.Yes)
-            //{
-            try
-            {
-                ExecuteDeleteSQL();  // 執行 SQL 刪除操作
-                MessageBox.Show("已刪除完成！", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // 清除完成後重置按鈕狀態
-                InitializeButtons();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("清除設定檔時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            //}
-        }
-        #endregion
-
-        #region 資料庫操作
-        /// <summary>
-        /// 開啟測試環境資料庫連線 
-        /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
-        /// </summary>
-        /// <param name="connection">SQL 連線物件</param>
-        private static void OpenSqlConnectionTest(SqlConnection connection)
-        {
-            string connectionString = GetConnectionStringTest();
-            // 驗證連線字串不為空
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException("連線字串不能為空");
-            }
-            // **安全改進：確保使用加密連線**
-            SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
-            builder.Encrypt = true;  // 強制使用SSL/TLS加密
-            builder.TrustServerCertificate = true;  // 驗證伺服器憑證
-            builder.ConnectTimeout = 30;  // 設定連線逾時
-
-            connection.ConnectionString = builder.ConnectionString;
-            connection.Open();
-
-            //connection.ConnectionString = connectionString;
-            //connection.Open();
-        }
-
-        /// <summary>
-        /// 取得測試環境資料庫連線字串 
-        /// 連接到 hilife-tfs 伺服器的 HI_TMMAIN 資料庫
-        /// </summary>
-        /// <returns>測試環境資料庫連線字串</returns>
-        static private string GetConnectionStringTest()
-        {
-#if DEBUG
-            //<add name = "ConnDB_TFS_HI_TMMAIN" connectionString = "Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;Persist Security Info=True;User ID=pos;Password=pos1" providerName = "System.Data.SqlClient" />
-            // 測試環境：hilife-tfs 伺服器，HI_TMMAIN 資料庫
-            return "Data Source=Hilife-tfs;Initial Catalog=HI_TMMAIN;User ID=pos;Password=pos1";
-#else
-                    return "Data Source=localhost;Initial Catalog=POSSC;User ID=sa;Password=23285582";
-#endif
-        }
-
-        /// <summary>
-        /// 執行 SQL 刪除操作 
-        /// 刪除測試環境 HI_TMMAIN 資料庫中的 FileModList 資料表內容
-        /// </summary>
-        private void ExecuteDeleteSQL()
-        {
-            try
-            {
-                // 建立 SQL 連線物件
-                SqlConnection sConn = new SqlConnection();
-                OpenSqlConnectionTest(sConn);  // 開啟測試環境資料庫連線
-
-                // 建立資料表物件
-                DataTable dt = new DataTable();
-
-                // SQL 刪除語句 - 刪除 FileModList 資料表所有資料
-                string sql = "DELETE FROM FileModList";
-
-                // 使用 SqlDataAdapter 執行 SQL 
-                SqlDataAdapter Tb = new SqlDataAdapter(sql, sConn);
-                Tb.Fill(dt);  // 執行 SQL 命令
-
-                sConn.Close();   // 關閉連線
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("執行 SQL 刪除時發生錯誤：" + ex.Message);
-            }
-        }
-        #endregion
-
-        #region 檔案讀取處理
-        /// <summary>
-        /// 讀取總部版本檔案
-        /// CSV 格式：FILE_NAME,FILE_MODFIY_TIME,FILE_SIZE
-        /// </summary>
-        private FileInfo[] ReadServerVersionFile()
-        {
-            try
-            {
-                // 根據測試/正式模式選擇路徑
-                string versionPath = useTestPath ? testVersionPath : prodVersionPath;
-
-                // 檢查檔案是否存在
-                if (!File.Exists(versionPath))
-                {
-                    throw new FileNotFoundException("找不到版本檔案：" + versionPath);
-                }
-
-                string[] lines = File.ReadAllLines(versionPath);  // 讀取所有行
-                FileInfo[] files = new FileInfo[3];               // 建立三個檔案的陣列
-
-                // 判斷檔案格式 - 檢查第一行是否為標題行
-                int startIndex = 1; // 預設從第二行開始（跳過標題）
-                if (!lines[0].StartsWith("FILE_NAME") && !lines[0].Contains("FILE_MODFIY_TIME"))
-                {
-                    startIndex = 0; // 如果沒有標題行，從第一行開始
-                }
-
-                // 解析版本檔案內容
-                for (int i = startIndex; i < lines.Length && i - startIndex < 3; i++)
-                {
-                    // 處理 CSV 格式 - 分割逗號，並處理可能的引號
-                    string[] parts = SplitCSVLine(lines[i]);
-
-                    if (parts.Length >= 3)
-                    {
-                        int index = GetFileIndex(parts[0].Trim());  // 取得檔案索引，並去除空白
-                        if (index >= 0)
-                        {
-                            files[index] = new FileInfo
-                            {
-                                Name = parts[0].Trim(),                                   // 檔案名稱
-                                ModifyTime = ParseDateTime(parts[1].Trim()),              // 檔案修改時間
-                                FileSize = long.Parse(parts[2].Trim())                    // 檔案大小
-                            };
-                        }
-                    }
-                }
-
-                return files;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("讀取總部版本檔案錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// 分割 CSV 行，處理逗號和引號的情況
-        /// </summary>
-        /// <param name="csvLine">CSV 行內容</param>
-        /// <returns>分割後的字串陣列</returns>
-        private string[] SplitCSVLine(string csvLine)
-        {
-            // 簡單的 CSV 分割，如果有引號包含的欄位可以用這個方法
-            var result = new List<string>();
-            bool inQuotes = false;
-            var currentField = new StringBuilder();
-
-            for (int i = 0; i < csvLine.Length; i++)
-            {
-                char c = csvLine[i];
-
-                if (c == '"' && (i == 0 || csvLine[i - 1] == ','))
-                {
-                    inQuotes = true; // 開始引號
-                }
-                else if (c == '"' && inQuotes && (i == csvLine.Length - 1 || csvLine[i + 1] == ','))
-                {
-                    inQuotes = false; // 結束引號
-                }
-                else if (c == ',' && !inQuotes)
-                {
-                    result.Add(currentField.ToString());
-                    currentField.Clear();
-                }
-                else
-                {
-                    currentField.Append(c);
-                }
-            }
-
-            result.Add(currentField.ToString());
-            return result.ToArray();
-        }
-
-        /// <summary>
-        /// 解析日期時間字串，支援多種格式
-        /// </summary>
-        /// <param name="dateTimeString">日期時間字串</param>
-        /// <returns>DateTime 物件</returns>
-        private DateTime ParseDateTime(string dateTimeString)
-        {
-            try
-            {
-                // 支援多種日期格式
-                string[] formats = {
-                        "yyyy-MM-dd HH:mm:ss.fff",  // 2025-07-24 15:26:44.000
-                        "yyyy-MM-dd HH:mm:ss",      // 2025-07-24 15:26:44
-                        "yyyy/MM/dd HH:mm:ss",      // 2025/07/24 15:26:44
-                        "MM/dd/yyyy HH:mm:ss",      // 07/24/2025 15:26:44
-                        "dd/MM/yyyy HH:mm:ss"       // 24/07/2025 15:26:44
-                    };
-
-                foreach (string format in formats)
-                {
-                    if (DateTime.TryParseExact(dateTimeString, format, null, System.Globalization.DateTimeStyles.None, out DateTime result))
-                    {
-                        return result;
-                    }
-                }
-
-                // 如果都不符合，使用預設解析
-                return DateTime.Parse(dateTimeString);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"無法解析日期時間 '{dateTimeString}': {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// 讀取門市檔案資訊 
-        /// </summary>
-        /// <returns>檔案資訊陣列</returns>
-        private FileInfo[] ReadClientFiles()
-        {
-            FileInfo[] files = new FileInfo[3];
-
-            // 根據測試/正式模式選擇路徑陣列
-            string[] filePaths = useTestPath ?
-                new string[] { testServicePath, testWebPath, testUpdatePath } :
-                new string[] { prodServicePath, prodWebPath, prodUpdatePath };
-
-            // 逐一讀取檔案資訊
-            for (int i = 0; i < filePaths.Length; i++)
-            {
-                try
-                {
-                    if (File.Exists(filePaths[i]))
-                    {
-                        // 取得檔案資訊
-                        System.IO.FileInfo fileInfo = new System.IO.FileInfo(filePaths[i]);
-                        files[i] = new FileInfo
-                        {
-                            Name = GetFileNameByIndex(i),         // 檔案名稱
-                            ModifyTime = fileInfo.LastWriteTime,  // 最後修改時間
-                            FileSize = fileInfo.Length            // 檔案大小
-                        };
-                    }
-                    else
-                    {
-                        // 檔案不存在時的處理
-                        files[i] = new FileInfo
-                        {
-                            Name = GetFileNameByIndex(i),
-                            ModifyTime = DateTime.MinValue,  // 設為最小值表示不存在
-                            FileSize = 0
-                        };
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("讀取門市檔案 " + filePaths[i] + " 錯誤：" + ex.Message, "錯誤",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-
-                    // 發生錯誤時的預設值
-                    files[i] = new FileInfo
-                    {
-                        Name = GetFileNameByIndex(i),
-                        ModifyTime = DateTime.MinValue,
-                        FileSize = 0
-                    };
-                }
-            }
-
-            return files;
-        }
-        #endregion
-
-        #region 比對處理
-        /// <summary>
-        /// 比對總部與門市檔案並顯示結果
-        /// </summary>
-        /// <param name="serverFiles">總部檔案資訊</param>
-        /// <param name="clientFiles">門市檔案資訊</param>
-        /// <returns>是否全部比對正確</returns>
-        private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
-        {
-            bool allCorrect = true;  // 記錄是否全部正確
-
-            // 逐一比對三個檔案
-            for (int i = 0; i < 3; i++)
-            {
-                bool isCorrect = false;
-                string result = "不正確";  // 預設為不正確
-
-                // 檢查總部和門市檔案是否都存在
-                if (serverFiles[i] != null && clientFiles[i] != null &&
-                    clientFiles[i].ModifyTime != DateTime.MinValue)
-                {
-                    // 使用精確的時間比對
-                    bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
-                    bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
-
-                    isCorrect = timeMatches && sizeMatches;
-                    result = isCorrect ? "正確" : "不正確";
-
-                    // 訊息 - 比對詳細資訊
-                    if (!isCorrect)
-                    {
-                        string debugMsg = $"{GetFileNameByIndex(i)} 比對詳細：\n";
-                        debugMsg += $"總部時間：{serverFiles[i].ModifyTime:yyyy-MM-dd HH:mm:ss}\n";
-                        debugMsg += $"門市時間：{clientFiles[i].ModifyTime:yyyy-MM-dd HH:mm:ss}\n";
-                        debugMsg += $"時間相符：{timeMatches}\n";
-                        debugMsg += $"總部大小：{serverFiles[i].FileSize}\n";
-                        debugMsg += $"門市大小：{clientFiles[i].FileSize}\n";
-                        debugMsg += $"大小相符：{sizeMatches}";
-
-                        // MessageBox.Show(debugMsg, "比對詳細資訊", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
-                else
-                {
-                    // 如果總部或門市檔案不存在，顯示錯誤訊息並停止比對
-                    string missingFile = "";
-                    if (serverFiles[i] == null) missingFile += "總部版本檔案遺失 ";
-                    if (clientFiles[i] == null || clientFiles[i].ModifyTime == DateTime.MinValue)
-                        missingFile += "門市檔案遺失";
-
-                    MessageBox.Show($"{GetFileNameByIndex(i)} {missingFile}", "檔案遺失錯誤",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    result = "檔案遺失";
-                }
-
-                if (!isCorrect) allCorrect = false;  // 有任一檔案不正確就設為 false
-
-                // 將比對結果加入到 DataGridView 顯示
-                AddComparisonRow(
-                    serverFiles[i]?.Name ?? GetFileNameByIndex(i),
-                    serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
-                    serverFiles[i]?.FileSize.ToString() ?? "無資料",
-                    clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
-                    clientFiles[i]?.FileSize.ToString() ?? "無資料",
-                    result,
-                    isCorrect ? Color.Green : Color.Red  // 正確顯示綠色，不正確顯示紅色
-                );
-            }
-
-            return allCorrect;
-        }
-
-        /// <summary>
-        /// 比對兩個 DateTime
-        /// </summary>
-        /// <param name="dt1">第一個時間</param>
-        /// <param name="dt2">第二個時間</param>
-        /// <returns>是否相同（精確到秒）</returns>
-        private bool CompareDateTime(DateTime dt1, DateTime dt2)
-        {
-            // 將兩個時間都轉換為相同格式，只比較到秒
-            DateTime time1 = new DateTime(dt1.Year, dt1.Month, dt1.Day, dt1.Hour, dt1.Minute, dt1.Second);
-            DateTime time2 = new DateTime(dt2.Year, dt2.Month, dt2.Day, dt2.Hour, dt2.Minute, dt2.Second);
-
-            return time1 == time2;
-        }
-
-        /// <summary>
-        /// 將比對結果加入到 DataGridView 中顯示
-        /// </summary>
-        private void AddComparisonRow(string programName, string serverDate, string serverSize,
-            string clientDate, string clientSize, string result, Color resultColor)
-        {
-            // 加入新的資料列
-            int rowIndex = dataGridView1.Rows.Add(programName, serverDate, serverSize, clientDate, clientSize, result);
-
-            // 設定程式名稱欄位樣式 - 深藍色背景、白色字體、粗體
-            dataGridView1.Rows[rowIndex].Cells[0].Style.BackColor = Color.DarkBlue;
-            dataGridView1.Rows[rowIndex].Cells[0].Style.ForeColor = Color.White;
-            dataGridView1.Rows[rowIndex].Cells[0].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
-
-            // 設定資料欄位樣式 - 白色背景、黑色字體、置中對齊
-            for (int i = 1; i < 5; i++)
-            {
-                dataGridView1.Rows[rowIndex].Cells[i].Style.BackColor = Color.White;
-                dataGridView1.Rows[rowIndex].Cells[i].Style.ForeColor = Color.Black;
-                dataGridView1.Rows[rowIndex].Cells[i].Style.Font = new Font("Microsoft JhengHei", 9);
-                dataGridView1.Rows[rowIndex].Cells[i].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            }
-
-            // 設定比對結果欄位樣式 - 白色背景、根據結果顯示不同顏色、粗體、置中
-            dataGridView1.Rows[rowIndex].Cells[5].Style.BackColor = Color.White;
-            dataGridView1.Rows[rowIndex].Cells[5].Style.ForeColor = resultColor;
-            dataGridView1.Rows[rowIndex].Cells[5].Style.Font = new Font("Microsoft JhengHei", 10, FontStyle.Bold);
-            dataGridView1.Rows[rowIndex].Cells[5].Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
-        }
-        #endregion
-
-        #region 輔助方法
-        /// <summary>
-        /// 根據檔案名稱取得索引位置
-        /// </summary>
-        /// <param name="fileName">檔案名稱</param>
-        /// <returns>索引位置 (0=Service, 1=Web, 2=Update)</returns>
-        private int GetFileIndex(string fileName)
-        {
-            switch (fileName.ToUpper())
-            {
-                case "SC.SERVICE": return 0;  // SC.Service 對應索引 0
-                case "SC.WEB": return 1;      // SC.Web 對應索引 1
-                case "SC.UPDATE": return 2;   // SC.Update 對應索引 2
-                default: return -1;           // 找不到對應檔案
-            }
-        }
-
-        /// <summary>
-        /// 根據索引位置取得檔案名稱
-        /// </summary>
-        /// <param name="index">索引位置</param>
-        /// <returns>檔案名稱</returns>
-        private string GetFileNameByIndex(int index)
-        {
-            switch (index)
-            {
-                case 0: return "SC.Service";  // 索引 0 對應 SC.Service
-                case 1: return "SC.Web";      // 索引 1 對應 SC.Web
-                case 2: return "SC.Update";   // 索引 2 對應 SC.Update
-                default: return "";           // 無效索引
-            }
-        }
-        #endregion
+        // LOG寫入失敗時不影響主程式運作，但可以顯示警告
+        System.Diagnostics.Debug.WriteLine($"LOG寫入失敗：{ex.Message}");
     }
 }
+
+/// <summary>
+/// 寫入版本比對結果LOG
+/// </summary>
+/// <param name="fileType">檔案類型</param>
+/// <param name="result">比對結果</param>
+public static void WriteComparisonLog(string fileType, string result)
+{
+    string message = $"執行1.版本比對{fileType}結果:{result}";
+    WriteLog(message);
+}
+
+/// <summary>
+/// 寫入按鈕執行LOG
+/// </summary>
+/// <param name="buttonNumber">按鈕編號</param>
+/// <param name="action">執行動作</param>
+public static void WriteButtonLog(int buttonNumber, string action)
+{
+    string message = $"執行{buttonNumber}.{action}";
+    WriteLog(message);
+}
+```
+
+}
+
+// ============================================================================
+// 修改後的按鈕事件處理（加入LOG記錄）
+// ============================================================================
+
+#region 按鈕事件處理（加入LOG記錄版本）
+
+private void button1_Click(object sender, EventArgs e)
+{
+try
+{
+button1.Enabled = false;
+this.Cursor = Cursors.WaitCursor;
+
+```
+    dataGridView1.Rows.Clear();
+
+    // 讀取總部版本資訊
+    var serverFiles = ReadServerVersionFile();
+    if (serverFiles == null)
+    {
+        MessageBox.Show("無法讀取總部版本檔案！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    // 讀取門市版本資訊
+    var clientFiles = ReadClientFiles();
+
+    // 執行比對並更新顯示
+    bool allCorrect = CompareAndDisplay(serverFiles, clientFiles);
+
+    // **新增：記錄比對結果LOG**
+    LogComparisonResults(serverFiles, clientFiles);
+
+    // 對應按鈕
+    UpdateButtonStates(allCorrect);
+
+    // 更新比對時間顯示
+    labelCompareTime.Text = "比對執行時間：" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+
+    MessageBox.Show("版本比對完成！", "比對結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
+catch (Exception ex)
+{
+    // 記錄錯誤LOG
+    Logger.WriteLog($"執行1.版本比對發生錯誤:{ex.Message}");
+    MessageBox.Show("版本比對發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+}
+finally
+{
+    button1.Enabled = true;
+    this.Cursor = Cursors.Default;
+}
+```
+
+}
+
+private void button2_Click_1(object sender, EventArgs e)
+{
+try
+{
+// **記錄按鈕2執行LOG**
+Logger.WriteButtonLog(2, “接收HIPOS最新版本與更新”);
+
+```
+    // 取得bat檔路徑 - 根據測試/正式模式選擇
+    string batPath = useTestPath ? testBatPath : prodBatPath;
+
+    // 安全驗證bat檔路徑
+    if (!IsValidBatPath(batPath))
+    {
+        Logger.WriteLog("執行2.bat檔路徑驗證失敗");
+        MessageBox.Show("無效的bat檔案路徑", "安全警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+
+    // 檢查bat檔是否存在
+    if (!File.Exists(batPath))
+    {
+        Logger.WriteLog($"執行2.找不到bat檔案：{batPath}");
+        MessageBox.Show("找不到bat檔案：" + Path.GetFileName(batPath), "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    button2.Enabled = false;
+    this.Cursor = Cursors.WaitCursor;
+
+    // **修復Command Injection：使用更安全的執行方式**
+    ProcessStartInfo startInfo = new ProcessStartInfo
+    {
+        FileName = "cmd.exe",
+        Arguments = $"/c \"{batPath}\"",
+        UseShellExecute = false,
+        CreateNoWindow = true,  // 在背景執行
+        WorkingDirectory = Path.GetDirectoryName(batPath)
+    };
+
+    using (Process process = Process.Start(startInfo))
+    {
+        // 等待執行完成，但設定逾時
+        bool finished = process.WaitForExit(5 * 60 * 1000); // 5分鐘逾時
+        
+        if (finished && process.ExitCode == 0)
+        {
+            Logger.WriteLog("執行2.接收HIPOS最新版本與更新完成");
+            MessageBox.Show("版本更新完成！請重新執行版本比對功能", "更新完成",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else if (!finished)
+        {
+            Logger.WriteLog("執行2.更新程序執行逾時");
+            MessageBox.Show("更新程序執行時間過長，請檢查是否有問題", "警告",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (!process.HasExited)
+            {
+                process.Kill();
+            }
+        }
+        else
+        {
+            Logger.WriteLog($"執行2.更新程序異常結束，錯誤代碼:{process.ExitCode}");
+            MessageBox.Show("更新過程發生問題，請檢查bat檔案", "警告",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+}
+catch (Exception ex)
+{
+    Logger.WriteLog($"執行2.接收HIPOS最新版本與更新發生錯誤:{ex.Message}");
+    MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+}
+finally
+{
+    button2.Enabled = true;
+    this.Cursor = Cursors.Default;
+}
+```
+
+}
+
+private void button3_Click(object sender, EventArgs e)
+{
+try
+{
+// **記錄按鈕3執行LOG**
+Logger.WriteButtonLog(3, “清除設定檔資料”);
+
+```
+    ExecuteDeleteSQL();  // 執行 SQL 刪除操作
+    
+    // 記錄清除完成LOG
+    Logger.WriteLog("執行3.清除設定檔資料完成");
+    
+    MessageBox.Show("已刪除完成！", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+    // 清除完成後重置按鈕狀態
+    InitializeButtons();
+}
+catch (Exception ex)
+{
+    Logger.WriteLog($"執行3.清除設定檔資料發生錯誤:{ex.Message}");
+    MessageBox.Show("清除設定檔時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+}
+```
+
+}
+
+#endregion
+
+// ============================================================================
+// 新增：記錄比對結果的方法
+// ============================================================================
+
+/// <summary>
+/// 記錄版本比對結果LOG
+/// </summary>
+/// <param name="serverFiles">總部檔案資訊</param>
+/// <param name="clientFiles">門市檔案資訊</param>
+private void LogComparisonResults(FileInfo[] serverFiles, FileInfo[] clientFiles)
+{
+try
+{
+// 比對三個檔案並記錄結果
+for (int i = 0; i < 3; i++)
+{
+bool isCorrect = false;
+string result = “不正確”;
+string fileType = “”;
+
+```
+        // 取得檔案類型名稱
+        switch (i)
+        {
+            case 0: fileType = "SC.Service"; break;
+            case 1: fileType = "SC.Web"; break;
+            case 2: fileType = "SC.Update"; break;
+        }
+
+        // 檢查總部和門市檔案是否都存在
+        if (serverFiles[i] != null && clientFiles[i] != null &&
+            clientFiles[i].ModifyTime != DateTime.MinValue)
+        {
+            // 比對時間和大小
+            bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
+            bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+
+            isCorrect = timeMatches && sizeMatches;
+            result = isCorrect ? "正確" : "不正確";
+        }
+        else
+        {
+            result = "檔案遺失";
+        }
+
+        // 記錄比對結果LOG
+        Logger.WriteComparisonLog(fileType, result);
+    }
+}
+catch (Exception ex)
+{
+    Logger.WriteLog($"記錄比對結果時發生錯誤:{ex.Message}");
+}
+```
+
+}
+
+// ============================================================================
+// 新增：bat檔路徑安全驗證方法
+// ============================================================================
+
+/// <summary>
+/// 驗證bat檔路徑是否安全
+/// </summary>
+/// <param name="batPath">bat檔路徑</param>
+/// <returns>是否安全</returns>
+private bool IsValidBatPath(string batPath)
+{
+try
+{
+// 檢查路徑是否為空或null
+if (string.IsNullOrWhiteSpace(batPath))
+return false;
+
+```
+    // 檢查是否為.bat或.cmd檔案
+    string extension = Path.GetExtension(batPath).ToLowerInvariant();
+    if (extension != ".bat" && extension != ".cmd")
+        return false;
+
+    // 檢查路徑是否包含危險字符
+    char[] invalidChars = { '|', '&', ';', '<', '>', '^' };
+    if (batPath.IndexOfAny(invalidChars) != -1)
+        return false;
+
+    // 檢查是否為絕對路徑
+    if (!Path.IsPathRooted(batPath))
+        return false;
+
+    return true;
+}
+catch
+{
+    return false;
+}
+```
+
+}
+
+// ============================================================================
+// LOG檔案範例內容
+// ============================================================================
+
+/*
+LOG檔案將會建立在程式同一層的Log資料夾中，檔名格式：YYYYMMDD_HIPOS檔案比對.log
+
+範例內容：
+20250109_14:30:15 執行1.版本比對SC.Service結果:不正確
+20250109_14:30:15 執行1.版本比對SC.Web結果:正確
+20250109_14:30:15 執行1.版本比對SC.Update結果:正確
+20250109_14:32:20 執行2.接收HIPOS最新版本與更新
+20250109_14:35:45 執行2.接收HIPOS最新版本與更新完成
+20250109_14:36:10 執行1.版本比對SC.Service結果:正確
+20250109_14:36:10 執行1.版本比對SC.Web結果:正確
+20250109_14:36:10 執行1.版本比對SC.Update結果:正確
+20250109_14:38:25 執行3.清除設定檔資料
+20250109_14:38:26 執行3.清除設定檔資料完成
+*/
+
+// ============================================================================
+// 使用說明
+// ============================================================================
+
+/*
+
+1. 將Logger類別加入到您的專案中
+1. 將修改後的按鈕事件方法替換原有的方法
+1. 加入LogComparisonResults和IsValidBatPath兩個新方法
+1. 確保專案中已引用System.IO命名空間
+
+執行後：
+
+- 每次按按鈕1會記錄三個檔案的比對結果
+- 每次按按鈕2會記錄接收更新的開始和結果
+- 每次按按鈕3會記錄清除設定檔的執行
+- LOG檔案會累計寫入，每日一個檔案
+- LOG檔案位於程式目錄的Log子資料夾中
+  */
