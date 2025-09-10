@@ -1,5 +1,5 @@
 // ============================================================================
-// 簡化版Logger.cs（移除不必要的功能）
+// 最終版Logger.cs（LOG檔案直接與EXE同層）
 // ============================================================================
 
 using System;
@@ -8,30 +8,26 @@ using System.IO;
 namespace HIPOSFileComparer
 {
 /// <summary>
-/// 日誌記錄工具類別 - 簡化版
+/// 日誌記錄工具類別
 /// </summary>
 public class Logger
 {
 /// <summary>
 /// 寫入LOG記錄
+/// LOG檔案位置：程式目錄\YYYYMMDD_HIPOS檔案比對.log
 /// </summary>
 /// <param name="message">要記錄的訊息</param>
 public static void WriteLog(string message)
 {
 try
 {
-// 取得 EXE 所在目錄
+// 取得 EXE 所在目錄（與EXE同一層，不建立子資料夾）
 string exePath = AppDomain.CurrentDomain.BaseDirectory;
 
 ```
-            // 建立 Log 資料夾（與 EXE 同層）
-            string logFolder = Path.Combine(exePath, "Log");
-            if (!Directory.Exists(logFolder))
-                Directory.CreateDirectory(logFolder);
-
-            // 建立每日一檔的 LOG 檔案
+            // 建立每日一檔的 LOG 檔案，直接放在EXE同一層
             string logFileName = DateTime.Now.ToString("yyyyMMdd") + "_HIPOS檔案比對.log";
-            string logFile = Path.Combine(logFolder, logFileName);
+            string logFile = Path.Combine(exePath, logFileName);
 
             // 寫入 LOG
             using (StreamWriter sw = File.AppendText(logFile))
@@ -51,10 +47,9 @@ string exePath = AppDomain.CurrentDomain.BaseDirectory;
 }
 
 // ============================================================================
-// 修正後的Form1.cs按鈕方法（直接在比對時記錄）
+// 修改CompareAndDisplay方法（加入詳細檔案資訊到LOG）
 // ============================================================================
 
-// 修改CompareAndDisplay方法，在比對時直接記錄LOG
 private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
 {
 bool allCorrect = true;
@@ -67,10 +62,22 @@ for (int i = 0; i < 3; i++)
     string result = "不正確";
     string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
 
+    // 檔案資訊變數
+    string clientTime = "無資料";
+    string clientSize = "無資料";
+    string serverTime = "無資料";
+    string serverSize = "無資料";
+
     // 檢查總部和門市檔案是否都存在
     if (serverFiles[i] != null && clientFiles[i] != null &&
         clientFiles[i].ModifyTime != DateTime.MinValue)
     {
+        // 準備檔案資訊
+        clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+        clientSize = clientFiles[i].FileSize.ToString();
+        serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+        serverSize = serverFiles[i].FileSize.ToString();
+
         // 使用精確的時間比對
         bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
         bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
@@ -80,6 +87,19 @@ for (int i = 0; i < 3; i++)
     }
     else
     {
+        // 處理檔案遺失情況
+        if (serverFiles[i] != null)
+        {
+            serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+            serverSize = serverFiles[i].FileSize.ToString();
+        }
+        
+        if (clientFiles[i] != null && clientFiles[i].ModifyTime != DateTime.MinValue)
+        {
+            clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+            clientSize = clientFiles[i].FileSize.ToString();
+        }
+
         string missingFile = "";
         if (serverFiles[i] == null) missingFile += "總部版本檔案遺失 ";
         if (clientFiles[i] == null || clientFiles[i].ModifyTime == DateTime.MinValue)
@@ -92,8 +112,9 @@ for (int i = 0; i < 3; i++)
 
     if (!isCorrect) allCorrect = false;
 
-    // **直接在這裡記錄比對結果LOG，避免重複比對**
-    Logger.WriteLog($"執行1.版本比對{fileType}結果:{result}");
+    // **記錄詳細的比對結果LOG（一行包含所有資訊）**
+    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
+    Logger.WriteLog(logMessage);
 
     // 將比對結果加入到 DataGridView 顯示
     AddComparisonRow(
@@ -112,53 +133,10 @@ return allCorrect;
 
 }
 
-// 簡化後的button1_Click（移除重複的LogComparisonResults呼叫）
-private void button1_Click(object sender, EventArgs e)
-{
-try
-{
-button1.Enabled = false;
-this.Cursor = Cursors.WaitCursor;
+// ============================================================================
+// 其他按鈕方法（保持簡單）
+// ============================================================================
 
-```
-    dataGridView1.Rows.Clear();
-
-    // 讀取總部版本資訊
-    var serverFiles = ReadServerVersionFile();
-    if (serverFiles == null)
-    {
-        MessageBox.Show("無法讀取總部版本檔案！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return;
-    }
-
-    // 讀取門市版本資訊
-    var clientFiles = ReadClientFiles();
-
-    // 執行比對並更新顯示（比對時已經自動記錄LOG了）
-    bool allCorrect = CompareAndDisplay(serverFiles, clientFiles);
-
-    // 對應按鈕
-    UpdateButtonStates(allCorrect);
-
-    // 更新比對時間顯示
-    labelCompareTime.Text = "比對執行時間：" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
-
-    MessageBox.Show("版本比對完成！", "比對結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
-}
-catch (Exception ex)
-{
-    MessageBox.Show("版本比對發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-}
-finally
-{
-    button1.Enabled = true;
-    this.Cursor = Cursors.Default;
-}
-```
-
-}
-
-// 簡化後的button2_Click_1
 private void button2_Click_1(object sender, EventArgs e)
 {
 try
@@ -234,7 +212,6 @@ finally
 
 }
 
-// 簡化後的button3_Click
 private void button3_Click(object sender, EventArgs e)
 {
 try
@@ -257,7 +234,7 @@ catch (Exception ex)
 
 }
 
-// bat檔安全驗證方法（保留）
+// bat檔安全驗證方法
 private bool IsValidBatPath(string batPath)
 {
 try
@@ -283,3 +260,18 @@ catch
 
 }
 
+// ============================================================================
+// LOG檔案範例內容
+// ============================================================================
+
+/*
+檔案位置：與EXE同一層
+檔名：20250109_HIPOS檔案比對.log
+
+內容範例：
+20250109_14:30:15 執行1.版本比對SC.Service結果:不正確 門市:2025/01/08 10:30:45/2048576 總部:2025/01/09 11:20:30/2048600
+20250109_14:30:15 執行1.版本比對SC.Web結果:正確 門市:2025/01/09 09:15:20/1536000 總部:2025/01/09 09:15:20/1536000
+20250109_14:30:15 執行1.版本比對SC.Update結果:正確 門市:2025/01/09 08:45:10/896512 總部:2025/01/09 08:45:10/896512
+20250109_14:32:20 執行2.接收HIPOS最新版本與更新
+20250109_14:38:25 執行3.清除設定檔資料
+*/
