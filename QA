@@ -1,4 +1,152 @@
 // ============================================================================
+// 簡化版CompareAndDisplay方法（假設檔案都存在）
+// ============================================================================
+
+private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
+{
+bool allCorrect = true;
+
+```
+// 逐一比對三個檔案
+for (int i = 0; i < 3; i++)
+{
+    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
+
+    // 準備檔案資訊（假設檔案都存在）
+    string clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+    string clientSize = clientFiles[i].FileSize.ToString();
+    string serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+    string serverSize = serverFiles[i].FileSize.ToString();
+
+    // 比對時間和大小
+    bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
+    bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+
+    bool isCorrect = timeMatches && sizeMatches;
+    string result = isCorrect ? "正確" : "不正確";
+
+    if (!isCorrect) allCorrect = false;
+
+    // **記錄詳細的比對結果LOG**
+    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
+    Logger.WriteLog(logMessage);
+
+    // 將比對結果加入到 DataGridView 顯示
+    AddComparisonRow(
+        serverFiles[i].Name,
+        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        serverFiles[i].FileSize.ToString(),
+        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        clientFiles[i].FileSize.ToString(),
+        result,
+        isCorrect ? Color.Green : Color.Red
+    );
+}
+
+return allCorrect;
+```
+
+}
+
+// ============================================================================
+// 更保險的版本（保留基本null檢查，避免程式崩潰）
+// ============================================================================
+
+private bool CompareAndDisplaySafe(FileInfo[] serverFiles, FileInfo[] clientFiles)
+{
+bool allCorrect = true;
+
+```
+// 逐一比對三個檔案
+for (int i = 0; i < 3; i++)
+{
+    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
+
+    // 基本安全檢查（避免null reference exception）
+    if (serverFiles[i] == null || clientFiles[i] == null)
+    {
+        Logger.WriteLog($"執行1.版本比對{fileType}結果:檔案遺失 門市:無資料/無資料 總部:無資料/無資料");
+        continue; // 跳過這個檔案
+    }
+
+    // 準備檔案資訊
+    string clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+    string clientSize = clientFiles[i].FileSize.ToString();
+    string serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
+    string serverSize = serverFiles[i].FileSize.ToString();
+
+    // 比對時間和大小
+    bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
+    bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+
+    bool isCorrect = timeMatches && sizeMatches;
+    string result = isCorrect ? "正確" : "不正確";
+
+    if (!isCorrect) allCorrect = false;
+
+    // 記錄詳細的比對結果LOG
+    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
+    Logger.WriteLog(logMessage);
+
+    // 將比對結果加入到 DataGridView 顯示
+    AddComparisonRow(
+        serverFiles[i].Name,
+        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        serverFiles[i].FileSize.ToString(),
+        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        clientFiles[i].FileSize.ToString(),
+        result,
+        isCorrect ? Color.Green : Color.Red
+    );
+}
+
+return allCorrect;
+```
+
+}
+
+// ============================================================================
+// 最精簡版本（完全移除錯誤處理）
+// ============================================================================
+
+private bool CompareAndDisplayMinimal(FileInfo[] serverFiles, FileInfo[] clientFiles)
+{
+bool allCorrect = true;
+
+```
+for (int i = 0; i < 3; i++)
+{
+    string fileType = GetFileNameByIndex(i);
+
+    // 直接比對，不做任何檢查
+    bool isCorrect = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime) && 
+                    (serverFiles[i].FileSize == clientFiles[i].FileSize);
+    
+    string result = isCorrect ? "正確" : "不正確";
+    
+    if (!isCorrect) allCorrect = false;
+
+    // LOG記錄
+    Logger.WriteLog($"執行1.版本比對{fileType}結果:{result} 門市:{clientFiles[i].ModifyTime:yyyy/MM/dd HH:mm:ss}/{clientFiles[i].FileSize} 總部:{serverFiles[i].ModifyTime:yyyy/MM/dd HH:mm:ss}/{serverFiles[i].FileSize}");
+
+    // 顯示結果
+    AddComparisonRow(
+        serverFiles[i].Name,
+        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        serverFiles[i].FileSize.ToString(),
+        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
+        clientFiles[i].FileSize.ToString(),
+        result,
+        isCorrect ? Color.Green : Color.Red
+    );
+}
+
+return allCorrect;
+```
+
+}
+
+// ============================================================================
 // 最終版Logger.cs（LOG檔案直接與EXE同層）
 // ============================================================================
 
