@@ -1,425 +1,3296 @@
-// ============================================================================
-// 簡化版CompareAndDisplay方法（假設檔案都存在）
-// ============================================================================
 
-private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
-{
-bool allCorrect = true;
+需求1.新增刷卡機版號查詢功能、2.調整刷卡機結帳流程
+1.
+從電文取出版號，有版號資料時，寫出版本文字檔，檔名:EDCVersion_xxxxxxxx .txt 
+Xxxxxxxx代入電文結果，例如: EDCVerson_20260818 .txt
+EDC電文(切成模擬)
+d:\hilife-gethub\WebApp\POS.Web\Areas\Cashier\Device\UbotNew.cs
+Send() 取電文，切成模擬 Trans Type交易別=50 寫死讀OutData資料
+在解析OutData的地方，再解析出版號
+d:\hilife-gethub\WebApp\POS.Web\Areas\Cashier\Device\UbotNew.cs
+responseFromModel()
+再拿版號(8碼) 寫出版本文字檔 (檔名EDCVersion_版號8碼)
+寫版本檔案共用方法
+D:\HiLife-GetHub\Components\POS.Devices\DeviceSharedFunctions.cs 
+CreateDeviceVersionFile
+版號檔(版本文字檔)放置
+C:\POS\Web\Register\DeviceVersion
+寫新的action?
+最後
+在block畫面上加上版號，刷卡機版號=8碼
+--
+資料格式: 共450 bytes(ASCII) M:必要傳送欄位； C:視交易別決定是否傳送； O:自由傳送欄位 
+欄位名稱 Req. Resp. 長度 位置 備註 
+1 Trans Type 2 0 交易別 
+2 Host ID 2 2 銀行別 
+3 Receipt No. 6 4 調閱編號 
+4 PAN 19 10 卡號 
+5 Trans. Amount 10 29 交易金額 
+6 Trans. Date 6 39 交易日期 
+7 Trans. Time 6 45 交易時間 
+8 Approval Code 6 51 授權碼 
+9 Response Code 4 57 回應碼 
+10 Terminal ID. 8 61 端末機代號 
+11 Reference No. 12 69 銀行交易序號 
+12 Installment Period 2 81 分期期數 
+13 Down Payment 10 83 首期金額 
+14 Installment Payment 10 93 每期金額 
+15 Redeem Amount 10 103 折抵金額 
+16 Store ID 18 113 櫃號 
+17 Start Trans. Type 2 131 讀取卡號交易別 
+18 TRL INQ Flag 1 133 發票載具查詢 
+19 Invoice Encrypt. PAN 60 134 電子發票卡號 
+20 Merchant ID 15 194 商店代號 
+21 Pos Entry Mode 2 209 過卡方式 
+22 Token Indicator 1 211 行動支付 
+23 Exception Amount 10 212 排他金額 
+24 Sub Amount 10 222 代收金額 
+25 Batch Number 6 232 批次號碼 
+26 CUP Txn Date 4 238 原交易日期 
+27 CUP Txn Time 6 242 原交易時間 
+28 CUP Settle Date 4 248 銀聯清算日期 
+29 CUP Trace Number 6 252 銀聯交易序號 
+30 Merchant Code 22 258 特店識別碼 
+31 Sign Flag 1 280 簽名判斷 
+32 Campaign Disable Flag 3 281 無活動期間代碼 
+33 Discount Amount 10 284 折扣總額 
+34 Campaign Count(MAX:3) 1 294 活動數量 
+35 CampaignSN /RequestCampaign 8 295 活動代碼 POS帶入活動代碼 
+36 Campaign Result 2 303 活動詢問結果 
+37 Campaign Discount 10 305 活動折抵金額或差額 
+38 Campaign SN 8 315 活動代碼 
+39 Campaign Result 2 323 活動詢問結果 
+40 Campaign Discount 10 325 活動折抵金額或差額 
+41 Campaign SN 8 335 活動代碼 
+42 Campaign Result 2 343 活動詢問結果 
+43 Campaign Discount 10 345 活動折抵金額或差額 
+44 Application Version 8 355 應用程式版號 (結帳回傳) //新增 
+45 Reserved 87 363 預留擴充用
 
-```
-// 逐一比對三個檔案
-for (int i = 0; i < 3; i++)
-{
-    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
+--
+3.2.1. 交易別(Transaction Type)：
+交易別 代碼 說明
+SALE 01 一般交易(含CUP) 
+REFUND 02 退貨交易(含CUP) 
+OFFLINE 03 交易補登 
+INSTALLMENT 04 分期付款 
+REDEEM 05 紅利扣抵 
+INSTALLMENT REFUND 06 分期退貨 
+REDEEM REFUND 07 紅利退貨 
+PREAUTH 19 預先授權 
+PREAUTH COMPLETE 20 預先授權完成 
+VOID PREAUTH 21 取消預先授權 
+VOID PREAUTH COMPLETE 22 取消預先授權完成 
+TIP 28 小費交易 
+VOID 30 取消交易 
+SETTLE 50 結帳 
+REPRINT 55 重印簽單/查詢交易 
+TX START 60 卡號查詢 
+TX END 70 卡號查詢結束(終止第二段) 
+NEED TO SIGN 80 交易後需簽名
 
-    // 準備檔案資訊（假設檔案都存在）
-    string clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-    string clientSize = clientFiles[i].FileSize.ToString();
-    string serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-    string serverSize = serverFiles[i].FileSize.ToString();
+--
+3.2.2. 
+銀行別(Host ID)： 
+銀行別 代碼 說明 
+花旗銀行 00 Dinersclub卡 
+美國運通 01 AE卡 
+銀聯卡 02 銀聯卡 
+紅利交易 04 聯邦銀行(V/M/J) 
+分期交易 05 聯邦銀行(V/M/J) 
+一般信用卡 08 聯邦銀行(V/M/J)
 
-    // 比對時間和大小
-    bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
-    bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
+2.
+EDC結帳電文
+d:\hilife-gethub\WebApp\POS.Web\Areas\Cashier\Services\EDCService.cs
+SettlementAll()
+無版號清帳順序為：一般交易→銀聯交易→AE交易
+有版號清帳順序為：銀聯交易→AE交易→一般交易
+有無版號是從C:\POS\Web\Register\DeviceVersion 確認有沒有EDCVerson_開頭的檔案
+程式碼:
+UBOTNEW:
 
-    bool isCorrect = timeMatches && sizeMatches;
-    string result = isCorrect ? "正確" : "不正確";
-
-    if (!isCorrect) allCorrect = false;
-
-    // **記錄詳細的比對結果LOG**
-    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
-    Logger.WriteLog(logMessage);
-
-    // 將比對結果加入到 DataGridView 顯示
-    AddComparisonRow(
-        serverFiles[i].Name,
-        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        serverFiles[i].FileSize.ToString(),
-        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        clientFiles[i].FileSize.ToString(),
-        result,
-        isCorrect ? Color.Green : Color.Red
-    );
-}
-
-return allCorrect;
-```
-
-}
-
-// ============================================================================
-// 更保險的版本（保留基本null檢查，避免程式崩潰）
-// ============================================================================
-
-private bool CompareAndDisplaySafe(FileInfo[] serverFiles, FileInfo[] clientFiles)
-{
-bool allCorrect = true;
-
-```
-// 逐一比對三個檔案
-for (int i = 0; i < 3; i++)
-{
-    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
-
-    // 基本安全檢查（避免null reference exception）
-    if (serverFiles[i] == null || clientFiles[i] == null)
-    {
-        Logger.WriteLog($"執行1.版本比對{fileType}結果:檔案遺失 門市:無資料/無資料 總部:無資料/無資料");
-        continue; // 跳過這個檔案
-    }
-
-    // 準備檔案資訊
-    string clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-    string clientSize = clientFiles[i].FileSize.ToString();
-    string serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-    string serverSize = serverFiles[i].FileSize.ToString();
-
-    // 比對時間和大小
-    bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
-    bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
-
-    bool isCorrect = timeMatches && sizeMatches;
-    string result = isCorrect ? "正確" : "不正確";
-
-    if (!isCorrect) allCorrect = false;
-
-    // 記錄詳細的比對結果LOG
-    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
-    Logger.WriteLog(logMessage);
-
-    // 將比對結果加入到 DataGridView 顯示
-    AddComparisonRow(
-        serverFiles[i].Name,
-        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        serverFiles[i].FileSize.ToString(),
-        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        clientFiles[i].FileSize.ToString(),
-        result,
-        isCorrect ? Color.Green : Color.Red
-    );
-}
-
-return allCorrect;
-```
-
-}
-
-// ============================================================================
-// 最精簡版本（完全移除錯誤處理）
-// ============================================================================
-
-private bool CompareAndDisplayMinimal(FileInfo[] serverFiles, FileInfo[] clientFiles)
-{
-bool allCorrect = true;
-
-```
-for (int i = 0; i < 3; i++)
-{
-    string fileType = GetFileNameByIndex(i);
-
-    // 直接比對，不做任何檢查
-    bool isCorrect = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime) && 
-                    (serverFiles[i].FileSize == clientFiles[i].FileSize);
-    
-    string result = isCorrect ? "正確" : "不正確";
-    
-    if (!isCorrect) allCorrect = false;
-
-    // LOG記錄
-    Logger.WriteLog($"執行1.版本比對{fileType}結果:{result} 門市:{clientFiles[i].ModifyTime:yyyy/MM/dd HH:mm:ss}/{clientFiles[i].FileSize} 總部:{serverFiles[i].ModifyTime:yyyy/MM/dd HH:mm:ss}/{serverFiles[i].FileSize}");
-
-    // 顯示結果
-    AddComparisonRow(
-        serverFiles[i].Name,
-        serverFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        serverFiles[i].FileSize.ToString(),
-        clientFiles[i].ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss"),
-        clientFiles[i].FileSize.ToString(),
-        result,
-        isCorrect ? Color.Green : Color.Red
-    );
-}
-
-return allCorrect;
-```
-
-}
-
-// ============================================================================
-// 最終版Logger.cs（LOG檔案直接與EXE同層）
-// ============================================================================
-
+using Microsoft.AspNet.SignalR;
+using POS.BusinessRules;
+using POS.Common;
+using POS.DataAccess;
+using POS.Devices.Enums;
+using POS.Devices.Models;
+using POS.Models;
+using POS.Web.Areas.Cashier.Controllers;
+using POS.Web.Areas.Cashier.Services;
 using System;
+using System.Collections.Generic;
+using System.Data.Entity;
+using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Web;
+using static POS.Devices.Models.CreditCardModels;
+using static POS.Web.Areas.Cashier.Models.PaymentModel;
 
-namespace HIPOSFileComparer
+namespace POS.Web.Areas.Cashier.Device
 {
-/// <summary>
-/// 日誌記錄工具類別
-/// </summary>
-public class Logger
-{
-/// <summary>
-/// 寫入LOG記錄
-/// LOG檔案位置：程式目錄\YYYYMMDD_HIPOS檔案比對.log
-/// </summary>
-/// <param name="message">要記錄的訊息</param>
-public static void WriteLog(string message)
-{
-try
-{
-// 取得 EXE 所在目錄（與EXE同一層，不建立子資料夾）
-string exePath = AppDomain.CurrentDomain.BaseDirectory;
-
-```
-            // 建立每日一檔的 LOG 檔案，直接放在EXE同一層
-            string logFileName = DateTime.Now.ToString("yyyyMMdd") + "_HIPOS檔案比對.log";
-            string logFile = Path.Combine(exePath, logFileName);
-
-            // 寫入 LOG
-            using (StreamWriter sw = File.AppendText(logFile))
+    public class UbotNew : Devices.Interface.iCreditCardReader
+    {
+        public Devices.Models.CreditCardModels.CreditCardResponse changeKey(Devices.Models.CreditCardModels.CreditCardChangeKeyRequest data)
+        {
+            var reqData = new UbotNewTradeModel()
             {
-                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HH:mm:ss");
-                sw.WriteLine($"{timeStamp} {message}");
+                TransType = CreditCardEnum.UbotTransType.CHANGEKEY.ToCode(),      //"91",
+                HostID = data.HostID,
+                StoreID = data.StoreID,
+                TransDate = data.POSDateTime.ToString("yyMMdd"),
+                TransTime = data.POSDateTime.ToString("HHmmss"),
+                MerchantCode = data.StoreID
+            };
+            var respData = Send(reqData);
+            Devices.Models.CreditCardModels.CreditCardResponse response = responseFromModel(respData);
+            return response;
+        }
+
+        public Devices.Models.CreditCardModels.CreditCardResponse refund(Devices.Models.CreditCardModels.CreditCardRefundRequest data, CreditCardEnum.CardType RefundCardType)
+        {
+            string TransType = CreditCardEnum.UbotNewTransType.REFUND.ToCode();
+            string HostID = CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode();
+            string Eventcode = "";
+            string SaleDate = "";
+            string TransNo = "";
+
+            if (string.IsNullOrEmpty(data.strTransToRefund))
+            {
+                SaleDate = "";
+                TransNo = "";
+            }
+            else if (data.strTransToRefund.Length > 8)
+            {
+                SaleDate = data.strTransToRefund.Substring(0, 8);
+                TransNo = data.strTransToRefund.Substring(9, 6);
+            }
+            else
+            {
+                SaleDate = data.strTransToRefund;
+                TransNo = data.strTransNoToRefund;
+            }
+
+            POSLocalEntities db = new POSLocalEntities();
+            var _Trans_P = db.Trans_P.Where(x => x.Trans_No == TransNo && x.Sales_Date == SaleDate).FirstOrDefault();
+            var _Trans_P_EXT = db.Trans_P_Ext.Where(x => x.Trans_No == TransNo && x.Sales_Date == SaleDate || x.Edc_Ref_No == data.RefNo).FirstOrDefault();
+            Eventcode = _Trans_P?.Event;
+
+            string strRefNo = "";
+            string strApprovalCode = "000000";
+
+            if(data.IsCloudFridge) //整買刷退資料從電文來
+            {
+                strRefNo = data.RefNo;
+                strApprovalCode = strApprovalCode;
+            }
+            else
+            {
+                strRefNo = _Trans_P_EXT?.Edc_Ref_No;
+                strApprovalCode = _Trans_P_EXT?.Edc_Approval_Code;
+            }
+            var reqData = new UbotNewTradeModel()
+            {
+                TransType = TransType,
+                HostID = HostID,
+                TransAmt = ((int)(data.amt)).ToString(),               // 金額,兩位小數
+                StoreID = data.StoreID,
+                TransDate = data.POSDateTime.ToString("yyMMdd"),
+                TransTime = data.POSDateTime.ToString("HHmmss"),
+                MerchantCode = data.StoreID,
+                ApprovalCode = strApprovalCode,
+                RefNo = strRefNo
+            };
+            if (RefundCardType == CreditCardEnum.CardType.CUP)//銀聯卡
+            {
+                reqData.HostID = CreditCardEnum.UbotNewHostID.CUP.ToCode();
+
+                reqData.TerminalID = _Trans_P?.Terminal ?? "";
+                reqData.RefNo = strRefNo;
+                reqData.CUPSettlementDate = _Trans_P_EXT?.Edc_Cup_Settlement_Date;
+                reqData.CUPTxnDate = _Trans_P_EXT?.Edc_Cup_Txn_Date;
+                reqData.CUPTxnTime = _Trans_P_EXT?.Edc_Cup_Txn_Time;
+                reqData.CUPTxnSeq_No = _Trans_P_EXT?.Edc_Cup_Txn_Seq_No;
+                reqData.ApprovalCode = strApprovalCode;
+            }
+
+            if (RefundCardType == CreditCardEnum.CardType.AE)//AE
+            {
+                reqData.HostID = CreditCardEnum.UbotNewHostID.AE.ToCode();
+            }
+
+            if (Eventcode == "30D5") // 分期
+            {
+                reqData.TransType = CreditCardEnum.UbotNewTransType.INSTALLMENT_REFUND.ToCode();
+                reqData.HostID = CreditCardEnum.UbotNewHostID.PERIOD.ToCode();
+                reqData.TerminalID = _Trans_P?.Terminal ?? "";
+                reqData.RefNo = strRefNo;
+                reqData.ApprovalCode = strApprovalCode;
+                reqData.TransDate = _Trans_P_EXT.Sales_Date.Substring(2, _Trans_P_EXT.Sales_Date.Length - 2);
+                reqData.InstallmentPeriod = 3.ToString("D2");
+            }
+
+            var respData = Send(reqData);
+
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+            //if (resp != CreditCardEnum.UbotNewRespCode.Approval &&
+            //    resp != CreditCardEnum.UbotNewRespCode.AppvBatchFull &&
+            //    resp != CreditCardEnum.UbotNewRespCode.AppvNeedSign &&
+            //    resp != CreditCardEnum.UbotNewRespCode.Error &&
+            //    resp != CreditCardEnum.UbotNewRespCode.TimeOut)
+            //{
+            //    //先暫時註解 
+            //    //return processTimeOut(reqData);
+            //    //20220729已向HLF雅雲確認當簽名80發送後不管任何錯誤一律接著打55電文
+            //    return Send55Request(reqData);
+            //}
+            var result = responseFromModel(respData);
+            //如果TimeOut或者為C005,R003,R008錯誤代碼時要發送55重印簽單查詢交易是否成功
+            if (respData.RespCode == "C005" || respData.RespCode == "R008" || respData.RespCode == "R003" || respData.RespCode == "0003")
+            {
+                //先暫時註解 
+                //return processTimeOut(reqData);
+                //20220729已向HLF雅雲確認當簽名80發送後不管任何錯誤一律接著打55電文
+                result = Send55Request(reqData);
+            }
+
+            HostID = result.HostID;
+
+           
+
+            string strCardNoTit = result.CardNo.Substring(0, 1);
+            if (result.CardType.ToString() == "UNKNOWN")
+            {
+                switch (strCardNoTit)
+                {
+                    case "3":
+                        result.CardType = CreditCardEnum.CardType.JCB;
+                        break;
+                    case "4":
+                        result.CardType = CreditCardEnum.CardType.VISA;
+                        break;
+                    case "5":
+                        result.CardType = CreditCardEnum.CardType.MASTER;
+                        break;
+                    case "6":
+                        result.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+            }
+            result.HostID = HostID;
+            //以銀行別判斷卡種
+            switch (HostID)
+            {
+                //花旗銀行
+                case "00":
+                    result.CardType = CreditCardEnum.CardType.DinerSclub;
+                    break;
+                //美國運通
+                case "01":
+                    result.CardType = CreditCardEnum.CardType.AE;
+                    break;
+                //CUP銀聯
+                case "02":
+                    result.CardType = CreditCardEnum.CardType.CUP;
+                    break;
+            }
+            result.EventCode = Eventcode;
+            return result;
+        }
+
+        public Devices.Models.CreditCardModels.CreditCardResponse reprint(Devices.Models.CreditCardModels.CreditCardReprintRequest data, CreditCardEnum.CardType RefundCardType)
+        {
+            string TransType = CreditCardEnum.UbotNewTransType.REPRINT.ToCode();
+            string HostID = CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode();
+            if (RefundCardType == CreditCardEnum.CardType.CUP)//銀聯卡
+            {
+                HostID = CreditCardEnum.UbotNewHostID.CUP.ToCode();
+            }
+            if (RefundCardType == CreditCardEnum.CardType.AE)//AE
+            {
+                HostID = CreditCardEnum.UbotNewHostID.AE.ToCode();
+            }
+            string dir = @"C:\POS\Web\Register\edc\UBNew";
+            string outFilenameForReceiptNo = dir + @"\OutData.dat";
+            if (!File.Exists(outFilenameForReceiptNo))
+            {
+                return new Devices.Models.CreditCardModels.CreditCardResponse()
+                {
+
+                };
+            }
+            var respDataForReceiptNo = new UbotNewTradeModel(File.ReadAllText(outFilenameForReceiptNo));
+            var reqData = new UbotNewTradeModel()
+            {
+                TransType = TransType,
+                HostID = HostID,
+                InvoiceNo = respDataForReceiptNo.InvoiceNo,
+                StoreID = data.StoreID,
+                TransDate = data.POSDateTime.ToString("yyMMdd"),
+                TransTime = data.POSDateTime.ToString("HHmmss"),
+                MerchantCode = data.StoreID
+            };
+            var respData = Send(reqData);
+
+            Devices.Models.CreditCardModels.CreditCardResponse response = responseFromModel(respData, reqData.TransAmt);
+
+            string strCardNoTit = response.CardNo.Substring(0, 1);
+            if (response.CardType.ToString() == "UNKNOWN")
+            {
+                switch (strCardNoTit)
+                {
+                    case "3":
+                        response.CardType = CreditCardEnum.CardType.JCB;
+                        break;
+                    case "4":
+                        response.CardType = CreditCardEnum.CardType.VISA;
+                        break;
+                    case "5":
+                        response.CardType = CreditCardEnum.CardType.MASTER;
+                        break;
+                    case "6":
+                        response.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+                //以銀行別判斷卡種
+                switch (HostID)
+                {
+                    //花旗銀行
+                    case "00":
+                        response.CardType = CreditCardEnum.CardType.DinerSclub;
+                        break;
+                    //美國運通
+                    case "01":
+                        response.CardType = CreditCardEnum.CardType.AE;
+                        break;
+                    //CUP銀聯
+                    case "02":
+                        response.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+            }
+
+            return response;
+        }
+
+        public Devices.Models.CreditCardModels.CreditCardResponse sale(Devices.Models.CreditCardModels.CreditCardSaleData data)
+        {
+            //DB Bincode_List比對用卡號
+            string strCardNoForBinList = "";
+            UbotNewTradeModel respData;
+            CreditCardEnum.UbotNewRespCode respCode;
+            //TransType:
+            //SALE    01  一般交易(含CUP)
+            //REFUND  02  退貨交易(含CUP)
+            //OFFLINE 03  交易補登
+            //INSTALLMENT 04  分期付款
+            //INSTALLMENT REFUND  06  分期退貨
+            //TX START    60  卡號查詢
+            //NEED TO SIGN    80  交易後需簽名
+
+            //HostID:
+            //美國運通    01  AE卡
+            //分期交易    05  聯邦銀行(V / M / J)  INSTALLMENT_SALE
+            //一般信用卡   08  聯邦銀行(V / M / J) TRANS_SALE
+            //銀聯卡 02 CUP
+            string campaignErrorMsg = "";
+            string HostID = "";
+            string BinCheckflag = "";
+            //卡號查詢
+            string TransType = CreditCardEnum.UbotNewTransType.CHECKBIN.ToCode();
+            var reqData = new UbotNewTradeModel();
+            var promotePrintCampaign = new List<EDC_ACT>();
+            var objPointAmount = new BaseModels.BaseResult<CalculatePointAmountResult>();
+            //排他金額(菸品)
+            int intExceptionAmt = Convert.ToInt32(data.Smoke);
+            switch (data.payType)
+            {
+                case CreditCardEnum.PayType.INSTALLMENT_SALE:
+                    HostID = CreditCardEnum.UbotNewHostID.PERIOD.ToCode();
+                    BinCheckflag = "3";
+                    break;
+                case CreditCardEnum.PayType.TRANS_SALE:
+                    HostID = CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode();
+                    if (data.HasSaleCollection)
+                        BinCheckflag = "2";
+                    else
+                        BinCheckflag = "1";
+                    break;
+            }
+            #region 判斷是否要走一段式電文   
+            POSLocalEntities db = new POSLocalEntities();
+            bool hasPdaica = false, hasPromote = false, Send60 = false;
+            string[] pay_list = new string[] { "30D1", "30D2", "30D3", "30D4", "30D5" };
+            string[] pro_list = new string[] { "9", "J", "K", "F", "8", "I" };
+            string campaignSN = "";
+            //1. 判斷是否有中台活動
+            var ACT_LISTs = new BusinessRules.Payment().GetUBActPlatformData("30D1", data.StoreID.Substring(0, 4));
+            bool hasUbact = new BusinessRules.Payment().HasUBActPlatformAct(ACT_LISTs);
+
+            //2.是否有VIP券
+            hasPromote = db.PromoteSetting.AsEnumerable()
+                    .Select(x => new PromoteSetting()
+                    {
+                        Mode = x.Mode,
+                        Date = x.Date,
+                    }).Where(x => x.Date == data.POSDateTime.ToString("yyyyMMdd") && pro_list.Contains(x.Mode)).Any();
+            //3.是否有點加金活動
+            hasPdaica = new BusinessRules.Payment().HasPdaicaAct(pay_list);
+            // 1.無中台活動 2.無VIP券活動 3.無點加金 4.無代收 5.非分期 符合以上5個條件才可走一段式電文
+            if (!hasUbact && !hasPdaica && !hasPromote && !data.HasSaleCollection && data.payType != CreditCardEnum.PayType.INSTALLMENT_SALE)
+                Send60 = false;
+            else
+                Send60 = true;
+            #endregion
+            if (Send60)
+            {
+                // 取得中台指定活動案號
+                campaignSN = new BusinessRules.Payment().GetUBAssignActNo(ACT_LISTs, data.StoreID.Substring(0, 4));
+                //卡片查詢
+                string msg = "";
+                respData = readCardCheckBin(data, TransType, HostID, BinCheckflag, hasUbact, campaignSN,out msg);
+
+                //詢卡回傳卡號前9碼為明碼
+                strCardNoForBinList = respData.CardNo;
+                //如果有代收交易且詢卡後HostID="02"銀聯卡且卡號比對不成功，2022/10/21修改只查ArcBincode若db沒有卡號資料且銀行別非聯邦皆阻擋
+                if (data.HasSaleCollection && respData.RespCode == "9999")
+                {
+                    UbotNewTradeModel doCheckbinEnd = new UbotNewTradeModel()
+                    {
+                        TransType = CreditCardEnum.UbotNewTransType.CHECKBIN_END.ToCode(),
+                    };
+                    //因詢卡後直接中斷交易需發70取消交易
+                    Send(doCheckbinEnd);
+                    var retv = responseFromModel(respData, data.amt.ToString());
+                    retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.IsNotRightCardForCollection;
+                    return retv;
+                }
+                //如使用分期但詢卡後HostID!="05"或卡號比對不成功則不允許使用分期交易
+                else if (data.payType == CreditCardEnum.PayType.INSTALLMENT_SALE)
+                {
+                    if (respData.HostID != "05" || respData.RespCode == "9999")
+                    {
+                        UbotNewTradeModel doCheckbinEnd = new UbotNewTradeModel()
+                        {
+                            TransType = CreditCardEnum.UbotNewTransType.CHECKBIN_END.ToCode(),
+                        };
+                        //因詢卡後直接中斷交易需發70取消交易
+                        Send(doCheckbinEnd);
+                        var retv = responseFromModel(respData, data.amt.ToString());
+                        retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.IsCannotUseInstallment;
+                        return retv;
+                    }
+                }
+                else if (BinCheckflag == "1" && respData.RespCode == "9999")
+                {
+                    UbotNewTradeModel doCheckbinEnd = new UbotNewTradeModel()
+                    {
+                        TransType = CreditCardEnum.UbotNewTransType.CHECKBIN_END.ToCode(),
+                    };
+                    //因詢卡後直接中斷交易需發70取消交易
+                    Send(doCheckbinEnd);
+                    var retv = responseFromModel(respData, data.amt.ToString());
+                    retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.IsNotRightCardForPrd;
+                    retv.ErrMsg = msg;
+                    return retv;
+                }
+                #region // 測試用詢卡
+                //測試用回傳詢卡結果
+                //respData = new UbotNewTradeModel() {
+                //    RespCode = "0000",
+                //    HostID = "08",
+                //    CardNo = "356656730*******   "
+                //};
+                #endregion
+
+                respCode = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+                // 測試階段廠商說0020不算失敗，因活動尚未設定完成
+                if (respCode != CreditCardEnum.UbotNewRespCode.Approval && respCode != CreditCardEnum.UbotNewRespCode.AppvBatchFull && respCode != CreditCardEnum.UbotNewRespCode.AppvNeedSign && respCode != CreditCardEnum.UbotNewRespCode.Campaign_TimeOut)
+                {
+                    var retv = responseFromModel(respData, data.amt.ToString());
+                    retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
+                    return retv;
+                }
+                HostID = respData.HostID;
+
+               
+                GetCampaign(respData, out string ErrorMsg, out int CampaignAmt, out EDC_ACT PointAmountCampaign, out List<EDC_ACT> PromotePrintCampaign);
+                var pointAmountCampaign = PointAmountCampaign;
+                promotePrintCampaign = PromotePrintCampaign;
+                if(!string.IsNullOrEmpty(ErrorMsg))
+                    campaignErrorMsg = ErrorMsg;
+                //// 電文活動點加金
+                //var pointAmountCampaign = GetPointAmountCampaign(respData, out int CampaignAmt);
+                //// 電文獎號列印活動
+                //promotePrintCampaign = GetPromotePrintCampaign(respData);
+
+                #region 點加金
+                objPointAmount = new PaymentService().CalculatePointAmount(new Models.PaymentModel.CalculatePointAmountQuery()
+                {
+                    PaymentId = GetRealPaymentID(data.payType, HostID),
+                    CardBin = respData.CardNo,
+                    PayAmount = data.amt,
+                    Custom_Code = pointAmountCampaign?.Act_Corr_Code,
+                    CampaignDiscAmount = CampaignAmt,
+                    Act_Name = pointAmountCampaign?.Act_Name
+                });
+                #endregion;
+
+                //更新點家金計算後所需付款的金額
+                data.amt = objPointAmount.body.PaymentAmount;
+                #region 顯示客顯活動名稱
+                if (objPointAmount.body.DiscAmount > 0 && !string.IsNullOrEmpty(objPointAmount.body.Campaign_Name))
+                {
+                    CommandModels.Command command_Actname = new CommandModels.Command();
+                    command_Actname.CommandName = "PdaicaCampaignName";
+                    command_Actname.Target = "Customer";
+                    command_Actname.CommandValue = new
+                    {
+                        ActName = objPointAmount.body.Campaign_Name,
+                        DiscAmt = objPointAmount.body.DiscAmount
+                    };
+                    var context = GlobalHost.ConnectionManager.GetHubContext<SignalR.BroadcastHub>();
+                    //呼叫客顯轉盤
+                    context.Clients.All.ShowMessage(command_Actname);
+                }
+                #endregion
+
+                reqData = new UbotNewTradeModel()
+                {
+                    TransType = CreditCardEnum.UbotNewTransType.SALE.ToCode(),
+                    HostID = HostID,
+                    TransAmt = ((int)(data.amt)).ToString(),
+                    ExceptionAmt = intExceptionAmt.ToString(),
+                    MerchantCode = data.StoreID,
+                    CardNo = respData.CardNo,
+                    StoreID = data.StoreID
+                };
+                //使用分期
+                if (data.payType == CreditCardEnum.PayType.INSTALLMENT_SALE)
+                {
+                    reqData.TransType = CreditCardEnum.UbotNewTransType.INSTALLMENT.ToCode();
+                    reqData.HostID = CreditCardEnum.UbotNewHostID.PERIOD.ToCode();
+                }
+                //交易含代收則要代入代收金額含代收收續費
+                if (data.HasSaleCollection)
+                {
+                    //總代收金額(包含代收手續費)
+                    string strTotalArcAmt = (Convert.ToInt32(data.arcAmt) + Convert.ToInt32(data.FeedAmt)).ToString();
+                    reqData.SubAmt = strTotalArcAmt;
+                }
+            }
+            else //一段式電文
+            {
+                reqData = new UbotNewTradeModel()
+                {
+                    TransType = CreditCardEnum.UbotNewTransType.SALE.ToCode(),
+                    HostID = HostID,
+                    TransAmt = ((int)(data.amt)).ToString(),
+                    ExceptionAmt = intExceptionAmt.ToString(),
+                    MerchantCode = data.StoreID,
+                    CardNo = "".PadLeft(18, ' '),
+                    StoreID = data.StoreID
+                };
+            }
+            //扣款
+            respData = Send(reqData);
+            respCode = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+            HostID = respData.HostID;//20240217-改從01電文取HostID
+
+            Devices.Models.CreditCardModels.CreditCardResponse response01 = responseFromModel(respData, reqData.TransAmt);
+            //DB Bincode_List比對用卡號
+            response01.CardNoForBinList = strCardNoForBinList;
+
+            if (respCode != CreditCardEnum.UbotNewRespCode.Approval
+                && respCode != CreditCardEnum.UbotNewRespCode.AppvBatchFull
+                && respCode != CreditCardEnum.UbotNewRespCode.AppvNeedSign
+                && respCode != CreditCardEnum.UbotNewRespCode.UploadFail
+                && respCode != CreditCardEnum.UbotNewRespCode.Error)
+            {
+                //response01 = processTimeOut(reqData);
+                ////DB Bincode_List比對用卡號
+                //response01.CardNoForBinList = strCardNoForBinList;
+                //if (response01.status != Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ)
+                //{
+                //    return response01;
+                //}
+                response01 = Send55Request(reqData);
+                response01.CardNoForBinList = strCardNoForBinList;
+            }
+            //2024/05/09不需發55，商店聯用01印
+            //if (respCode == CreditCardEnum.UbotNewRespCode.UploadFail)
+            //{
+            //    var repData55 = Send55Request(reqData);
+            //    HostID = repData55.HostID;//20240217-01電文TIMEOUT，則從55電文取HostID
+            //}
+            // 確認扣款結束寫入活動及點加金(一段式條段不需寫入)
+            if (Send60)
+            {
+                #region 點加金
+                if ((respCode == CreditCardEnum.UbotNewRespCode.UploadFail) || (respCode == CreditCardEnum.UbotNewRespCode.Approval)
+                    || (respCode == CreditCardEnum.UbotNewRespCode.AppvNeedSign))
+                {
+                    new PaymentService().UpdatePointAmountSession(new Models.TransModel.UpdatePointAmountSession()
+                    {
+                        PointAmount = objPointAmount.body.DiscAmount,
+                        BarcodeData = objPointAmount.body.BarcodeData
+                    });
+                    // 確認扣款結束成功後再寫入活動獎號Session
+                    SessionService.SetSession("PromotePrintCampaign", promotePrintCampaign);
+                    //// 確認扣款結束成功後再寫入活動錯誤訊息
+                    //SessionService.ClearSession("EdcActErrMsg");
+                    SessionService.SetSession("EdcActErrMsg", campaignErrorMsg);
+                }
+                response01.Amount = objPointAmount.body.PaymentAmount;
+                response01.DiscAmount = objPointAmount.body.DiscAmount;
+                response01.Act_Name = objPointAmount.body.Campaign_Name;
+            }
+            else //一段式電文
+            {
+                response01.Amount = data.amt;
+            }
+            #endregion
+            string strCardNoTit = respData.CardNo.Substring(0, 1);
+            switch (data.payType)
+            {
+                case CreditCardEnum.PayType.INSTALLMENT_SALE:
+                    switch (strCardNoTit)
+                    {
+                        case "3":
+                            response01.CardType = CreditCardEnum.CardType.JCB;
+                            break;
+                        case "4":
+                            response01.CardType = CreditCardEnum.CardType.VISA;
+                            break;
+                        case "5":
+                            response01.CardType = CreditCardEnum.CardType.MASTER;
+                            break;
+                    }
+                    break;
+                case CreditCardEnum.PayType.TRANS_SALE:
+                    switch (strCardNoTit)
+                    {
+                        case "3":
+                            response01.CardType = CreditCardEnum.CardType.JCB;
+                            break;
+                        case "4":
+                            response01.CardType = CreditCardEnum.CardType.VISA;
+                            break;
+                        case "5":
+                            response01.CardType = CreditCardEnum.CardType.MASTER;
+                            break;
+                    }
+                    break;
+            }
+            response01.HostID = HostID;
+
+            //以銀行別判斷卡種
+            switch (HostID)
+            {
+                //花旗銀行
+                case "00":
+                    response01.CardType = CreditCardEnum.CardType.DinerSclub;
+                    break;
+                //美國運通
+                case "01":
+                    response01.CardType = CreditCardEnum.CardType.AE;
+                    break;
+                //CUP銀聯
+                case "02":
+                    response01.CardType = CreditCardEnum.CardType.CUP;
+                    break;
+            }
+            return response01;
+        }
+
+        /// <summary>
+        /// 取得60電文中的點加金活動
+        /// </summary>
+        /// <returns></returns>
+        //private EDC_ACT GetPointAmountCampaign(UbotNewTradeModel respData, out int CampaignAmt)
+        //{
+        //    var objCacheEDC_ACT = new CacheUtility().GetEDC_ACT();
+        //    List<string> listCampaign = new List<string>() { respData.Campaign_SN_1, respData.Campaign_SN_2, respData.Campaign_SN_3 };
+        //    List<EDC_ACT> listMatchCampaign_SN = new List<EDC_ACT>();
+        //    CampaignAmt = int.Parse(respData.DiscountAmount);
+        //    foreach (var Campaign_SN in listCampaign)
+        //    {
+        //        if (!string.IsNullOrEmpty(Campaign_SN))
+        //        {
+        //            var EDC_ACTdata = objCacheEDC_ACT.Where(x => x.Act_No == Campaign_SN && x.Edc_Type == "30D1").FirstOrDefault();
+        //            if (EDC_ACTdata != null)
+        //                listMatchCampaign_SN.Add(EDC_ACTdata);
+        //        }
+        //    }
+
+        //    var result = listMatchCampaign_SN.Where(x => x.Act_Type == "A").FirstOrDefault();
+
+        //    return result;
+        //}
+
+        ///// <summary>
+        ///// 取得60電文中的獎號列印活動
+        ///// </summary>
+        ///// <returns></returns>
+        //private List<EDC_ACT> GetPromotePrintCampaign(UbotNewTradeModel respData)
+        //{
+        //    var objCacheEDC_ACT = new CacheUtility().GetEDC_ACT();
+        //    List<string> listCampaign = new List<string>() { respData.Campaign_SN_1, respData.Campaign_SN_2, respData.Campaign_SN_3 };
+        //    List<EDC_ACT> listMatchCampaign_SN = new List<EDC_ACT>();
+        //    foreach (var Campaign_SN in listCampaign)
+        //    {
+        //        if (!string.IsNullOrEmpty(Campaign_SN) && !string.IsNullOrWhiteSpace(Campaign_SN))
+        //        {
+        //            var EDC_ACTdata = objCacheEDC_ACT.Where(x => x.Act_No == Campaign_SN && x.Edc_Type == "30D1").FirstOrDefault();
+        //            if (EDC_ACTdata != null)
+        //                listMatchCampaign_SN.Add(EDC_ACTdata);
+        //        }
+        //    }
+
+        //    return listMatchCampaign_SN.Where(x => x.Act_Type == "B").ToList();
+        //}
+        /// <summary>
+        /// 取得60電文中的活動
+        /// </summary>
+        /// <returns></returns>
+        private void GetCampaign(UbotNewTradeModel respData, out string ErrorMsg, out int CampaignAmt, out EDC_ACT PointAmountCampaign, out List<EDC_ACT> PromotePrintCampaign)
+        {
+            ErrorMsg = "";
+            var objCacheEDC_ACT = new CacheUtility().GetEDC_ACT();
+            List<UbotNewActModel> listCampaign = new List<UbotNewActModel>()
+            {
+              new UbotNewActModel{ Campaign_SN = respData.Campaign_SN_1,Campaign_Result = respData.Campaign_Result_1},
+              new UbotNewActModel{ Campaign_SN = respData.Campaign_SN_2,Campaign_Result = respData.Campaign_Result_2},
+              new UbotNewActModel{ Campaign_SN = respData.Campaign_SN_3,Campaign_Result = respData.Campaign_Result_3}
+            };
+            CampaignAmt = int.Parse(respData.DiscountAmount);
+            List<EDC_ACT> listMatchCampaign_SN = new List<EDC_ACT>();
+            foreach (var itemCampaign in listCampaign)
+            {
+                if (!string.IsNullOrEmpty(itemCampaign.Campaign_SN) && !string.IsNullOrWhiteSpace(itemCampaign.Campaign_SN))
+                {
+                    var EDC_ACTdata = objCacheEDC_ACT.Where(x => x.Act_No == itemCampaign.Campaign_SN && x.Edc_Type == "30D1").FirstOrDefault();
+                    if (EDC_ACTdata != null)
+                    {
+                        if (itemCampaign.Campaign_Result == "00")
+                            listMatchCampaign_SN.Add(EDC_ACTdata);
+                        else
+                        {
+                            var errMsg = CreditCardEnumExtensions.ToActErrMsg(itemCampaign.Campaign_Result);
+                            if(!string.IsNullOrEmpty(errMsg))
+                                ErrorMsg = "活動名稱: " + EDC_ACTdata.Act_Name + "<br/>❌未符合原因:" + CreditCardEnumExtensions.ToActErrMsg(itemCampaign.Campaign_Result);
+                        }
+
+                    }
+                }
+            }
+            PointAmountCampaign = listMatchCampaign_SN.Where(x => x.Act_Type == "A").FirstOrDefault();
+            //EDC_ACT無對應活動時，不可折抵，將CampaignAmt改為0
+            if (PointAmountCampaign == null)
+            {
+                CampaignAmt = 0;
+            }
+            PromotePrintCampaign = listMatchCampaign_SN.Where(x => x.Act_Type == "B").ToList();
+        }
+        private string GetRealPaymentID(CreditCardEnum.PayType payType, string HostID)
+        {
+            if (payType == CreditCardEnum.PayType.INSTALLMENT_SALE)
+                return EDCService.NewUbotInstallmentPaymentId;
+            else
+            {
+                switch (HostID)
+                {
+                    //美國運通
+                    case "01":
+                        return EDCService.NewUbotPaymentIdAE;
+                        break;
+                    //CUP銀聯
+                    case "02":
+                        return EDCService.NewUbotPaymentIdCUP;
+                        break;
+                    default:
+                        return EDCService.NewUbotPaymentId;
+                        break;
+                }
             }
         }
-        catch (Exception ex)
+
+        public Devices.Models.CreditCardModels.CreditCardResponse settlement(Devices.Models.CreditCardModels.CreditCardSettleRequest data)
         {
-            System.Diagnostics.Debug.WriteLine($"LOG寫入失敗：{ex.Message}");
-        }
-    }
-}
-```
-
-}
-
-// ============================================================================
-// 修改CompareAndDisplay方法（加入詳細檔案資訊到LOG）
-// ============================================================================
-
-private bool CompareAndDisplay(FileInfo[] serverFiles, FileInfo[] clientFiles)
-{
-bool allCorrect = true;
-
-```
-// 逐一比對三個檔案
-for (int i = 0; i < 3; i++)
-{
-    bool isCorrect = false;
-    string result = "不正確";
-    string fileType = GetFileNameByIndex(i); // SC.Service, SC.Web, SC.Update
-
-    // 檔案資訊變數
-    string clientTime = "無資料";
-    string clientSize = "無資料";
-    string serverTime = "無資料";
-    string serverSize = "無資料";
-
-    // 檢查總部和門市檔案是否都存在
-    if (serverFiles[i] != null && clientFiles[i] != null &&
-        clientFiles[i].ModifyTime != DateTime.MinValue)
-    {
-        // 準備檔案資訊
-        clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-        clientSize = clientFiles[i].FileSize.ToString();
-        serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-        serverSize = serverFiles[i].FileSize.ToString();
-
-        // 使用精確的時間比對
-        bool timeMatches = CompareDateTime(serverFiles[i].ModifyTime, clientFiles[i].ModifyTime);
-        bool sizeMatches = (serverFiles[i].FileSize == clientFiles[i].FileSize);
-
-        isCorrect = timeMatches && sizeMatches;
-        result = isCorrect ? "正確" : "不正確";
-    }
-    else
-    {
-        // 處理檔案遺失情況
-        if (serverFiles[i] != null)
-        {
-            serverTime = serverFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-            serverSize = serverFiles[i].FileSize.ToString();
-        }
-        
-        if (clientFiles[i] != null && clientFiles[i].ModifyTime != DateTime.MinValue)
-        {
-            clientTime = clientFiles[i].ModifyTime.ToString("yyyy/MM/dd HH:mm:ss");
-            clientSize = clientFiles[i].FileSize.ToString();
-        }
-
-        string missingFile = "";
-        if (serverFiles[i] == null) missingFile += "總部版本檔案遺失 ";
-        if (clientFiles[i] == null || clientFiles[i].ModifyTime == DateTime.MinValue)
-            missingFile += "門市檔案遺失";
-
-        MessageBox.Show($"{GetFileNameByIndex(i)} {missingFile}", "檔案遺失錯誤",
-            MessageBoxButtons.OK, MessageBoxIcon.Error);
-        result = "檔案遺失";
-    }
-
-    if (!isCorrect) allCorrect = false;
-
-    // **記錄詳細的比對結果LOG（一行包含所有資訊）**
-    string logMessage = $"執行1.版本比對{fileType}結果:{result} 門市:{clientTime}/{clientSize} 總部:{serverTime}/{serverSize}";
-    Logger.WriteLog(logMessage);
-
-    // 將比對結果加入到 DataGridView 顯示
-    AddComparisonRow(
-        serverFiles[i]?.Name ?? GetFileNameByIndex(i),
-        serverFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
-        serverFiles[i]?.FileSize.ToString() ?? "無資料",
-        clientFiles[i]?.ModifyTime.ToString("yyyy/M/d 下午 HH:mm:ss") ?? "無資料",
-        clientFiles[i]?.FileSize.ToString() ?? "無資料",
-        result,
-        isCorrect ? Color.Green : Color.Red
-    );
-}
-
-return allCorrect;
-```
-
-}
-
-// ============================================================================
-// 其他按鈕方法（保持簡單）
-// ============================================================================
-
-private void button2_Click_1(object sender, EventArgs e)
-{
-try
-{
-// **記錄按鈕執行**
-Logger.WriteLog(“執行2.接收HIPOS最新版本與更新”);
-
-```
-    // 取得bat檔路徑
-    string batPath = useTestPath ? testBatPath : prodBatPath;
-
-    // 安全檢查
-    if (!IsValidBatPath(batPath))
-    {
-        MessageBox.Show("無效的bat檔案路徑", "安全警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        return;
-    }
-
-    if (!File.Exists(batPath))
-    {
-        MessageBox.Show("找不到bat檔案：" + Path.GetFileName(batPath), "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return;
-    }
-
-    button2.Enabled = false;
-    this.Cursor = Cursors.WaitCursor;
-
-    // 執行bat檔
-    ProcessStartInfo startInfo = new ProcessStartInfo
-    {
-        FileName = "cmd.exe",
-        Arguments = $"/c \"{batPath}\"",
-        UseShellExecute = false,
-        CreateNoWindow = true,
-        WorkingDirectory = Path.GetDirectoryName(batPath)
-    };
-
-    using (Process process = Process.Start(startInfo))
-    {
-        bool finished = process.WaitForExit(5 * 60 * 1000); // 5分鐘逾時
-        
-        if (finished && process.ExitCode == 0)
-        {
-            MessageBox.Show("版本更新完成！請重新執行版本比對功能", "更新完成",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        else if (!finished)
-        {
-            MessageBox.Show("更新程序執行時間過長，請檢查是否有問題", "警告",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            if (!process.HasExited)
+            var reqData = new UbotNewTradeModel()
             {
-                process.Kill();
+                TransType = CreditCardEnum.UbotNewTransType.SETTLEMENT.ToCode(),      //"50",
+                HostID = data.HostID,
+                StoreID = data.StoreID,
+                TransDate = data.POSDateTime.ToString("yyMMdd"),
+                TransTime = data.POSDateTime.ToString("HHmmss"),
+                MerchantCode = data.StoreID
+            };
+
+            UbotNewTradeModel respData;
+            Devices.Models.CreditCardModels.CreditCardResponse response = null;
+
+            for (int i = 0; i < 3; i++)
+            {
+                Thread.Sleep(3000); //測試起來3秒以上較正常
+                respData = Send(reqData);
+                response = responseFromModel(respData);
+                if (response.status == Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ)
+                {
+                    break;
+                }
+            }
+            return response;
+        }
+
+        public Devices.Models.CreditCardModels.CreditCardResponse signRefund(Devices.Models.CreditCardModels.CreditCardSignRequest data)
+        {
+            string TransType = CreditCardEnum.UbotNewTransType.SIGN.ToCode();
+
+            var reqData = new UbotNewTradeModel()
+            {
+                TransType = TransType,
+                StoreID = data.StoreID,
+                HostID = data.HostID,//帶原 SALE 交易的 Host Id
+                TransDate = data.POSDateTime.ToString("yyMMdd"),
+                TransTime = data.POSDateTime.ToString("HHmmss"),
+                TransAmt = data.Amount.ToString(),
+                MerchantCode = data.StoreID,
+                InvoiceNo = data.InvoiceNo//帶退貨交易02(REFUND)的InvoiceNo用於查詢
+            };
+            var respData = Send(reqData, 75 * 1000);
+
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+            //if (resp != CreditCardEnum.UbotNewRespCode.Approval && resp != CreditCardEnum.UbotNewRespCode.AppvBatchFull && resp != CreditCardEnum.UbotNewRespCode.AppvNeedSign)
+            //{
+            //    //if (resp == CreditCardEnum.UbotNewRespCode.TimeOut || resp == CreditCardEnum.UbotNewRespCode.UploadFail)
+            //    //{
+            //    //    //先暫時註解 
+            //    //    //return processTimeOut(reqData);
+            //    //    //20220729已向HLF雅雲確認當簽名80發送後不管任何錯誤一律接著打55電文
+            //    //    return Send55Request(reqData);
+            //    //}
+            //    //else if (resp == CreditCardEnum.UbotNewRespCode.Inconsistent)//9911
+            //    //{ //；如果檢核失敗，EDC 回傳 Resp Code=9911，視為雲端簽單上傳，需以重印簽單來操作
+            //    //    return Send55Request(reqData);
+            //    //}
+
+            //    //暫停目前執行緒，5秒後執行(加入此行因卡機太快送命令會導致卡機異常所以延遲5秒再送指令)
+            //    Thread.Sleep(5000);
+            //    var objRefundData = Send55Request(reqData);
+            //    objRefundData.ESignUploadSucc = false;
+            //    //20220729已向HLF雅雲確認當簽名80發送後不管任何錯誤一律接著打55電文
+            //    return objRefundData;
+
+            //    var retv = responseFromModel(respData);
+            //    retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
+
+            //    return retv;
+            //}
+
+            var result = responseFromModel(respData);
+
+            string strCardNoTit = respData.CardNo.Substring(0, 1);
+            if (result.CardType.ToString() == "UNKNOWN")
+            {
+                switch (strCardNoTit)
+                {
+                    case "3":
+                        result.CardType = CreditCardEnum.CardType.JCB;
+                        break;
+                    case "4":
+                        result.CardType = CreditCardEnum.CardType.VISA;
+                        break;
+                    case "5":
+                        result.CardType = CreditCardEnum.CardType.MASTER;
+                        break;
+                    case "6":
+                        result.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+            }
+            if (result.HostID == "09")
+                result.CardType = CreditCardEnum.CardType.CUP;
+            return result;
+        }
+
+        public Devices.Models.CreditCardModels.CreditCardResponse signSale(Devices.Models.CreditCardModels.CreditCardSignRequest data)
+        {
+            var reqData = new UbotNewTradeModel()
+            {
+                TransType = CreditCardEnum.UbotNewTransType.SIGN.ToCode(),
+                HostID = data.HostID,//帶原 SALE 交易的 Host Id
+                TransAmt = ((int)(data.Amount)).ToString(),
+                ExceptionAmt = "0",
+                MerchantCode = data.StoreID,
+            };
+
+            var respData = Send(reqData, 75 * 1000);
+
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+            //2024/05/09 80錯誤不需發55，商店聯用01印
+            //if (resp != CreditCardEnum.UbotNewRespCode.Approval && resp != CreditCardEnum.UbotNewRespCode.AppvBatchFull
+            //    && resp != CreditCardEnum.UbotNewRespCode.AppvNeedSign)
+            //{
+                ////20220729小韓向HLF雅雲確認發送80電文後不管甚麼錯誤訊息一律發55電文重印
+                //if (resp == CreditCardEnum.UbotNewRespCode.TimeOut ||
+                //   resp == CreditCardEnum.UbotNewRespCode.Others ||
+                //   resp == CreditCardEnum.UbotNewRespCode.Inconsistent ||
+                //   resp == CreditCardEnum.UbotNewRespCode.UploadFail)
+                //{
+                //    Thread.Sleep(5000);
+                //    var response = Send55Request(reqData);
+                //    response.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ;
+                //    response.ESignUploadSucc = false;
+                //    return response;
+                //}
+
+                //var retv = responseFromModel(respData);
+                //retv.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
+            //}
+
+            return responseFromModel(respData);
+        }
+
+        // 從outdata電文取出版號 8碼 responseFromModel
+        private UbotNewTradeModel Send(UbotNewTradeModel sendData, int timeout = 45 * 1000, bool needwait = true)
+        {
+            //using (POSLocalEntities db = new POSLocalEntities())
+            //{
+            //    string stimeout = db.Config.Where(x => x.ConfigName == "TIME_OUT").Select(c => c.ConfigValue).FirstOrDefault();
+            //    if (!string.IsNullOrEmpty(stimeout))
+            //    {
+            //        timeout = int.Parse(stimeout) * 1000;
+            //    }
+            //}
+
+            //string dir = @"C:\POS\Web\Register\edc\UBNew";
+            //string inFilename = dir + @"\InData.dat";
+            //string outFilename = dir + @"\OutData.dat";
+
+            //CreateUBNewRecord(sendData.ToStringLine(true), "#SEND");
+            //System.IO.File.WriteAllText(inFilename, sendData.ToStringLine(false));
+            //File.Delete(outFilename);
+
+            //var startInfo = new System.Diagnostics.ProcessStartInfo
+            //{
+            //    WorkingDirectory = dir,
+            //    FileName = @"ECRTool.exe"
+            //};
+            //System.Diagnostics.Process EDC_EXE = System.Diagnostics.Process.Start(startInfo);
+
+            //if (!needwait)
+            //{
+            //    return new UbotNewTradeModel();
+            //}
+
+            //for (int i = 0; i < timeout / 500; i++)
+            //{
+            //    if (File.Exists(outFilename))
+            //    {
+            //        Thread.Sleep(30);
+            //        break;
+            //    }
+            //    Thread.Sleep(500);
+            //}
+
+            //////測試用，卡機發完電文，手動改output.txt，進行測試
+            ////if ((sendData.TransType == "01") || ((sendData.ToString().TransType == "55")))
+            ////{
+            ////    Thread.Sleep(10000);
+            ////}
+
+
+            //UbotNewTradeModel respData;
+            //if (!File.Exists(outFilename))
+            //{
+            //    respData = new UbotNewTradeModel()
+            //    {
+            //        RespCode = CreditCardEnum.UbotNewRespCode.TimeOut.ToCode()
+            //    };
+            //    CreateUBNewRecord(respData.ToStringLine(true), "#RECEIVE");
+            //}
+            //else
+            //{
+            //    respData = new UbotNewTradeModel(File.ReadAllText(outFilename));
+            //    CreateUBNewRecord(respData.ToStringLine(true), "#RECEIVE");
+            //}
+
+            //if (sendData.TransType == "50")  //若是EDC清帳，把Process kill 掉，以免程序沒關掉，一直跑S008
+            //{
+            //    bool blFinished = EDC_EXE.WaitForExit(1000);
+            //    if (!blFinished)
+            //    {
+            //        EDC_EXE.Kill();
+            //    }
+            //}
+
+
+            // 模擬測試begin
+            UbotNewTradeModel respData;
+            if (sendData.TransType == "60")
+                respData = new UbotNewTradeModel(File.ReadAllText(@"c:\POS\Web\Register\EDC\UBNew\OUT60.txt"));
+            else if (sendData.TransType == "01")
+                respData = new UbotNewTradeModel(File.ReadAllText(@"c:\POS\Web\Register\EDC\UBNew\OUT01.txt"));
+            else if (sendData.TransType == "55")
+                //respData = new UbotNewTradeModel("                                                         S008                                                                                                                                                                                                                               0                                                                                                                                                                     ");
+                respData = new UbotNewTradeModel("5502000001817199*********0021000000023124050210230914703900001601285973000509                                    T09510211562450322  N                                                            00010086618000005 0000000000000000000000015705021023110502289432T0951021156245032218  N   0                                                                                                                                                                     ");
+            else if (sendData.TransType == "02")
+                respData = new UbotNewTradeModel("0208000007463781******5406   0000000315240507154523154523001914703167240507154523                                T09510143192450859  N                                                            00010078610000005                     000160                    T0951014319245085934  Y   0                                                                                                                                                                     ");
+            //respData = new UbotNewTradeModel("0208                         0000000100240305160813      0010                                                    T09510195542430706  N                                                                                                                            T0951019554243070608      0                                                                                                                                                                     ");
+            else if (sendData.TransType == "80")
+                respData = new UbotNewTradeModel("8008000007463781******5406   0000000315240507154523154523000114703167240507154523                                T09510143192450859  N                                                            00010078610000005                     000160                    T0951014319245085934  Y   0                                                                                                                                                                     ");
+            else if (sendData.TransType == "04")
+                respData = new UbotNewTradeModel("0402000001817199*********00210000000231240502102309147039S0081601285973000509                                    T09510211562450322  N                                                            00010086618000005 0000000000000000000000015705021023110502289432T0951021156245032218  N   0                                                                                                                                                                     ");
+            // 刷卡機結帳 讀取版號
+            else if (sendData.TransType == "50")
+                respData = new UbotNewTradeModel(File.ReadAllText(@"c:\POS\Web\Register\EDC\UBNew\OutData.txt"));
+            else
+                respData = new UbotNewTradeModel(" ");
+            CreateUBNewRecord(respData.ToStringLine(true), "#RECEIVE");
+            // 模擬測試end
+
+
+            return respData;
+        }
+
+        // 解析 OutData 版號
+        private Devices.Models.CreditCardModels.CreditCardResponse responseFromModel(UbotNewTradeModel respData, string TransAmt = null)
+        {
+            int intResult = 0;
+            return new Devices.Models.CreditCardModels.CreditCardResponse
+            {
+                CardType = CreditCardEnum.ParserUbot.CardType(new string(' ', 2)),////CTBC:卡別,
+                MerchantID = respData.MerchantID,
+                TerminalID = respData.TerminalID,
+                CardNo = respData.CardNo,
+                CUPSettlementDate = respData.CUPSettlementDate,
+                CUPTxnDate = respData.CUPTxnDate,
+                CUPTxnSeq_No = respData.CUPTxnSeq_No,
+                CUPTxnTime = respData.CUPTxnTime,
+                POSEntryMode = respData.POSEntryMode,
+                TransDateTime = parseDateTimeyyMMddHHmmss(respData.TransDate + respData.TransTime),
+                InvoiceNo = respData.InvoiceNo,
+                BatchNo = respData.BatchNo,
+                ApprovalCode = respData.ApprovalCode,
+                TransType = CreditCardEnum.ParserUbotNew.TransType(respData.TransType).ToName(),
+                RefNo = respData.RefNo,
+                StoreID = respData.StoreID,
+                Amount = amtStrToDec(TransAmt),  // EDC不會回傳amount欄位
+                NoNeedSign = respData.SignFlag != "Y",
+                ESignUploadSucc = respData.RespCode == "0006" ? false : true,//respData.RespCode上傳電簽失敗
+                EInvoiceIssuer = respData.TrlInqFlag == "Y",//CTBC:該卡號是否為已加入信用卡當電子發票載具之發卡行<-->UB:發票載具查詢
+                SHACardNo = respData.SHACardNo,
+                POSDateTime = parseDateTimeyyMMddHHmmss(respData.TransDate + respData.TransTime),
+                status = statusFromRespType(CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode)),
+                MerchantCode = respData.MerchantCode,
+                TransAmt = respData.TransAmt,
+                TransTime = respData.TransTime,
+                TransDate = respData.TransDate,
+                TokenIndicator = respData.TokenIndicator,
+                WalletType = "X",
+                RespCode = respData.RespCode,
+                SignFlag = respData.SignFlag,
+                E_SignatureUpload = "0",//CTBC:雲端簽單上傳雲端主機是否成功
+                HostID = respData.HostID,
+                InquiryType = respData.InstallmentPeriod,//分期期數
+                Amount1 = respData.DownPayment,//首期金額
+                Amount2 = respData.InstallmentPayment, // 每期金額
+                ARCAmt = Convert.ToInt32(amtStrToDec(respData.SubAmt)),
+                SmokeAmt = Convert.ToInt32(amtStrToDec(respData.ExceptionAmt))
+            };
+        }
+
+        private DateTime parseDateTimeyyMMddHHmmss(string yyMMddHHmmss)
+        {
+            DateTime dt = DateTime.MinValue;
+            try
+            {
+                dt = DateTime.ParseExact(yyMMddHHmmss, "yyMMddHHmmss", System.Globalization.CultureInfo.CurrentCulture);
+            }
+            catch { }
+            return dt;
+        }
+
+        private decimal? amtStrToDec(string strAmt)
+        {
+            if (strAmt is null) return null;
+
+            int amt;
+            bool succ = int.TryParse(strAmt, out amt);
+            if (succ) return amt / 100;
+            else return null;
+        }
+
+        Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus statusFromRespType(CreditCardEnum.UbotNewRespCode code)
+        {
+            switch (code)
+            {
+                case CreditCardEnum.UbotNewRespCode.Approval:
+                    return Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ;
+                case CreditCardEnum.UbotNewRespCode.AppvNeedSign:
+                    return Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.NeedSign;
+                case CreditCardEnum.UbotNewRespCode.EDC_Batch_Full:
+                    return Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.BatchFull;
+                case CreditCardEnum.UbotNewRespCode.UploadFail:
+                    return Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.UploadFail;
+                default:
+                    return Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
             }
         }
-        else
+
+        private Devices.Models.CreditCardModels.CreditCardResponse processTimeOut(UbotNewTradeModel reqData)
         {
-            MessageBox.Show("更新過程發生問題，請檢查bat檔案", "警告",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Devices.Models.CreditCardModels.CreditCardResponse response = new Devices.Models.CreditCardModels.CreditCardResponse();
+            response.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
+
+            for (int i = 0; i < 2; i++)
+            {
+                //暫停目前執行緒
+                Thread.Sleep(5000);
+                response = Send55Request(reqData);
+                if (response.status == Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ)
+                {
+                    response.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ;
+                    break;
+                }
+            }
+
+            return response;
+        }
+
+        private Devices.Models.CreditCardModels.CreditCardResponse Send55Request(UbotNewTradeModel reqData)
+        {
+            reqData.TransType = CreditCardEnum.UbotNewTransType.REPRINT.ToCode();
+            var respData = Send(reqData);
+
+            Devices.Models.CreditCardModels.CreditCardResponse response = responseFromModel(respData, reqData.TransAmt);
+
+            //發55後重印人工簽單，卡機成功回傳55資料後要將狀態改為fail
+            //response.status = Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Fail;
+
+            return response;
+        }
+
+        private UbotNewTradeModel readCardCheckBin(Devices.Models.CreditCardModels.CreditCardSaleData data, string TransType, string HostID, string BinCheckflag, bool hasUbact, string campaignSN,out string msg)
+        {
+            msg = "";
+            var act = false;
+            POSLocalEntities db = new POSLocalEntities();
+            UbotNewTradeModel reqData = new UbotNewTradeModel()
+            {
+                TransType = TransType,
+                HostID = HostID,
+                TransAmt = ((int)(data.amt)).ToString(),// 金額,兩位小數
+                StartTransType = "01",
+                ExceptionAmt = "0",
+                SubAmt = "0",
+                MerchantCode = data.StoreID,
+                StoreID = data.StoreID
+            };
+            //有使用分期付款一開始詢卡StartTransType就要帶入04及分期期數(預設為3期)
+            if (data.payType == CreditCardEnum.PayType.INSTALLMENT_SALE)
+            {
+                reqData.StartTransType = "04";
+                reqData.InstallmentPeriod = 3.ToString("D2");
+            }
+            //有支付代收時詢卡就要帶入代收金額
+            if (data.HasSaleCollection)
+            {
+                //總代收金額(包含代收手續費)
+                string strTotalArcAmt = (Convert.ToInt32(data.arcAmt) + Convert.ToInt32(data.FeedAmt)).ToString();
+                reqData.SubAmt = strTotalArcAmt;
+
+
+            }
+            //有排他金額時詢卡就要帶入排他金額
+            if (data.Smoke > 0)
+            {
+                reqData.ExceptionAmt = ((int)data.Smoke).ToString();
+            }
+            //聯邦60活動開關 1.有代收 2. 無中台活動 符合其中一個條件則RequestCampaignID要帶XXX
+            if (data.HasSaleCollection || !hasUbact || data.HasOnlineShoppingOrCloudFridge)
+                reqData.RequestCampaignID = "XXX";
+            else
+                reqData.RequestCampaignID = "   ";
+            #region 點加金
+            var objPointAmount = new PaymentService().CalculatePointAmount(new Models.PaymentModel.CalculatePointAmountQuery()
+            {
+                PaymentId = GetRealPaymentID(data.payType, HostID),
+                CardBin = "",
+                PayAmount = data.amt,
+                Custom_Code = "",
+                CampaignDiscAmount = 0
+            }, campaignSN);
+            #endregion;
+            Utility utility = new Utility();
+            if (objPointAmount.body.DiscAmount != 0)
+                reqData.Campaign_SN_1 = campaignSN;
+
+            UbotNewTradeModel respData = Send(reqData);
+
+            //詢卡失敗要發送TransType="70"取消交易電文
+            if (respData.RespCode != "0000" && respData.RespCode != "0020")
+            {
+                reqData.TransType = "70";
+                respData.HostID = null;
+                respData.TransAmt = null;
+                respData.StartTransType = null;
+                respData.ExceptionAmt = null;
+                respData.SubAmt = null;
+                respData.MerchantCode = null;
+                respData = Send(reqData);
+                return respData;
+            }
+
+            //回傳的 Card NO.(Bin Code)需與 Bintable 比對是否符合
+            if (!binCheck(respData.CardNo, BinCheckflag, out msg))
+            {
+                respData.RespCode = ((int)CreditCardEnum.UbotNewRespCode.Others).ToString();
+            }
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode);
+
+            return respData;
+        }
+
+        private bool binCheck(string cardNo, string BinCheckflag,out string msg)
+        {
+            msg = "";
+            POSLocalEntities db = new POSLocalEntities();
+            //銷售作業
+            if (BinCheckflag == "1")
+            {
+                bool canUse = new PublicController().CheckPayLimitIsAllow("05", "30D1", out msg,cardNo);
+
+                return canUse;
+            }
+            //代收or分期
+            else if (BinCheckflag == "2" || BinCheckflag == "3") //代收 + 分期檢核
+            {
+                //由收銀機依據所接收到的 BIN 比對 BINTABLE 判斷該信用卡是否可使用代收與分期業務
+                if (db.ArcBincode.Where(x => x.Bincode == cardNo.Substring(0, x.Bincode.Length) && x.Bank == "UB").Any())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 產生新聯邦刷卡機執行交易LOG記錄(TC用)
+        /// </summary>
+        private void CreateUBNewRecord(string sendData, string strActionType)
+        {
+            bool blIsWrited = false;
+            string strTCRecordDirPath = @"C:\POS\Web\Register\edc\UBNew\UBNewTCRecord";
+            if (!Directory.Exists(strTCRecordDirPath)) ;
+            {
+                Directory.CreateDirectory(strTCRecordDirPath);
+            }
+
+            PosConfig posConfig = new PosConfig();
+            string strFileName = "TClog" + posConfig.GetSaleDate().Replace("-", "") + ".txt";
+            string strRecordPath = Path.Combine(strTCRecordDirPath, strFileName);
+
+            if (!File.Exists(strRecordPath))
+            {
+                File.Create(strRecordPath).Close();
+            }
+
+            string strContent = $@"{DateTime.Now.ToString("yyyyMMdd HH:mm:ss")}{strActionType}" + "\n" +
+                                "------------------------------" + "\n" +
+                                sendData.ToString() + "\n" +
+                                "==============================" + "\n";
+            // 持續作寫入的動作，並判斷檔案是否有被鎖定，沒有被鎖定並寫入才離開
+            while (!blIsWrited)
+            {
+                // 如果檔案沒有被Lock，就寫入檔案
+                if (!D6invWriter.IsFileLocked(strRecordPath))
+                {
+                    File.AppendAllText(strRecordPath, strContent);
+                    blIsWrited = true;
+                }
+            }
         }
     }
 }
-catch (Exception ex)
+EDCSERVICE:
+using POS.BusinessRules;
+using POS.DataAccess;
+using POS.Devices.Enums;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Web;
+using static POS.Devices.Models.CreditCardModels;
+
+namespace POS.Web.Areas.Cashier.Services
 {
-    MessageBox.Show("執行更新時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    public class EDCService
+    {
+        static public string CtbcPaymentId { get => ((int)Code.SCM_Payment.PaymentType.EDCCtbc).ToString("X13"); }
+        static public string CtbcInstallmentPaymentId { get => ((int)Code.SCM_Payment.PaymentType.EDCCtbcInstallment).ToString("X13"); }
+        static public string CtbcPaymentIdAE { get => ((int)Code.SCM_Payment.PaymentType.EDCCtbcAE).ToString("X13"); }
+
+
+        static public List<string> PaymentIdAll = new List<string>() { CtbcPaymentId, CtbcInstallmentPaymentId, UbotPaymentId, NewUbotPaymentId, NewUbotInstallmentPaymentId };
+
+        static public string UbotPaymentId { get => ((int)Code.SCM_Payment.PaymentType.EDCUbot).ToString("X13"); }
+
+        static public string NewUbotPaymentId { get => ((int)Code.SCM_Payment.PaymentType.EDCNewUbot).ToString("X13"); }
+        static public string NewUbotInstallmentPaymentId { get => ((int)Code.SCM_Payment.PaymentType.EDCNewUbot_Installment).ToString("X13"); }
+        static public string NewUbotPaymentIdAE { get => ((int)Code.SCM_Payment.PaymentType.EDCNewUbot_AE).ToString("X13"); }
+        static public string NewUbotPaymentIdCUP { get => ((int)Code.SCM_Payment.PaymentType.EDCNewUbot_CUP).ToString("X13"); }
+        static public string NewUbotPaymentIdCollection { get => ((int)Code.SCM_Payment.PaymentType.EDCNewUbot_Collection).ToString("X13"); }
+
+        public enum EDCType { CTBC, UBOT , NEWUBOT};
+
+        static public EDCType edcType
+        {
+            get
+            {
+                POSLocalEntities db = new POSLocalEntities();
+                string EdcOrUb = db.Config.Where(x => x.ConfigName == "EDC_Status").Select(c => c.ConfigValue).FirstOrDefault();
+                if (EdcOrUb != null)
+                {
+                    if (EdcOrUb == "1") return EDCType.CTBC;
+                    else if (EdcOrUb == "2") return EDCType.UBOT;
+                    else if (EdcOrUb == "3") return EDCType.NEWUBOT;
+                }
+                return EDCType.CTBC;
+            }
+        }
+
+        static public string PaymentId
+        {
+            get
+            {
+                // 預設聯邦
+                string result = UbotPaymentId;
+
+                if (edcType == EDCType.CTBC) 
+                    result = CtbcPaymentId;
+                else if (edcType == EDCType.UBOT) 
+                    result = UbotPaymentId;
+                else if (edcType == EDCType.NEWUBOT)
+                    result = NewUbotPaymentId;
+                return result;
+
+            }
+        }
+
+        static public string InstallmentPaymentId
+        {
+            get
+            {
+                // 預設中信，聯邦無分期
+                string result = CtbcInstallmentPaymentId;
+
+                if (edcType == EDCType.CTBC)
+                    result = CtbcInstallmentPaymentId;
+                else if (edcType == EDCType.NEWUBOT)
+                    result = NewUbotInstallmentPaymentId;
+                return result;
+            }
+        }
+
+        static public string PaymentIdAE
+        {
+            get
+            {
+                // 預設中信，聯邦無AE
+                string result = CtbcPaymentIdAE;
+
+                if (edcType == EDCType.CTBC)
+                    result = CtbcPaymentIdAE;
+                else if (edcType == EDCType.NEWUBOT)
+                    result = NewUbotPaymentIdAE;
+                return result;
+            }
+        }
+
+        static public string PaymentCollection
+        {
+            get
+            {
+                // 預設聯邦
+                string result = NewUbotPaymentIdCollection;
+                if (edcType == EDCType.CTBC)
+                {
+                    result = CtbcPaymentId;
+                }
+                if (edcType == EDCType.NEWUBOT)
+                    result = NewUbotPaymentIdCollection;
+                return result;
+            }
+        }
+
+
+        CreditCardEnum.CardType RefundCardType;
+        string strTransToRefund;
+        string strTransNoToRefund;
+        public void getRefundCardType(string strTrans, string strTransNo = "", string strPayType = "",string strTransType="")
+        {
+            if (string.IsNullOrEmpty(strTrans) && string.IsNullOrEmpty(strPayType))
+            {
+                RefundCardType = CreditCardEnum.CardType.UNKNOWN;
+            }
+            //特殊EDC交易如雲冰付款退款或特殊卡別
+            else if (!string.IsNullOrEmpty(strTransType)||!string.IsNullOrEmpty(strPayType))
+            {
+                RefundCardType = Parser.FromSecType(strPayType);
+                strTransToRefund = strTrans;
+                strTransNoToRefund = strTransNo;
+            }
+            else
+            {
+                string TransNo = "";
+                string SalesDate = "";
+                //行動支付退貨，手動輸入
+                if (strTrans.Length == 8)
+                {
+                    SalesDate = strTrans;
+                    if (strTransNo.Length == 15)
+                        TransNo = strTransNo.Substring(9,6);
+                    else
+                        TransNo = strTransNo;
+                }
+                //作廢發票只輸入交易序號
+                else if (strTrans.Length == 6)
+                {
+                    SalesDate = new PosConfig().GetSaleDate().Replace("-", "");
+                    TransNo = strTrans;
+                }
+                //行動支付退貨，掃秒barcode
+                else
+                {
+                    SalesDate = strTrans.Substring(0, 8);
+                    TransNo = strTrans.Substring(9, 6);
+                }
+                strTransToRefund = SalesDate;
+                strTransNoToRefund = TransNo;
+                POSLocalEntities db = new POSLocalEntities();
+                var TransPayments = db.Trans_P.Where(x => x.Trans_No == TransNo && x.Sales_Date == SalesDate).FirstOrDefault();
+                //如果strPayType不為空或NULL則指定TransPayments.Sec_Type=strPayType
+                if (!string.IsNullOrEmpty(strPayType))
+                {
+                    TransPayments.Sec_Type = strPayType;
+                }
+                RefundCardType = Parser.FromSecType(TransPayments?.Sec_Type);
+            }
+
+        }
+
+        static public string PaymentName { get => new POSLocalEntities().Pay_Method.Where(x => x.Id == PaymentId).Select(x => x.Name).FirstOrDefault(); }
+        string storeID = "";
+        static public string storeIDForUBprint = "";
+        DateTime POSDateTime;
+        string PosID = "";
+        string TransNo = "";
+        string SaleDate = "";
+        public EDCService(string posId, string transNo, string saleDate)
+        {
+            this.PosID = posId;
+            this.TransNo = transNo;
+            this.SaleDate = saleDate.PadLeft(10, '0');
+            generateStoreID();
+        }
+
+        /// <summary>
+        ///轉換聯邦EDC櫃號 
+        /// </summary>
+        public void generateStoreID()
+        {
+            POSDateTime = DateTime.Now;
+            //storeID = POSDateTime.ToString("yyyyMMddHHmmss") + this.PosID + this.TransNo + this.SaleDate.Substring(5, 2) + this.SaleDate.Substring(8, 2);
+
+            PosConfig posConfig = new PosConfig();
+            string StoreID = posConfig.GetStoreId();
+            string POSNumber = posConfig.GetPOSNumber().ToString();
+            POSNumber = "0" + POSNumber.Substring(POSNumber.Length - 1, 1);
+            string SaleDate = posConfig.GetSaleDate().Replace("-", "");
+            SaleDate = SaleDate.Substring(SaleDate.Length - 4, 4);
+            string Trans_No = posConfig.GetTransNo();
+            storeID = DateTime.Now.ToString("yyyyMMddHHmmss") + StoreID + POSNumber + Trans_No + SaleDate;
+            storeIDForUBprint = storeID;
+            //店號(四碼) + 機號(一碼) + 交易序號(六碼) + 西元年末兩碼 + 月份(0~9不變10 > A 11 > B 12 > C)一碼 + 日(兩碼) + 分(兩碼) + 秒(兩碼)
+            if (edcType == EDCType.UBOT || edcType == EDCType.NEWUBOT)
+                storeID = StoreID + POSNumber.Substring(1) + Trans_No + this.SaleDate.Substring(2, 2) + int.Parse(this.SaleDate.Substring(5, 2)).ToString("X") + this.SaleDate.Substring(8, 2) + DateTime.Now.ToString("mmss");
+
+        }
+        /// <summary>
+        /// 取得聯邦EDC櫃號 
+        /// </summary>9
+        /// <returns></returns>
+        public string GetUbStoreId()
+        {
+            PosConfig posConfig = new PosConfig();
+            string StoreID = posConfig.GetStoreId();
+            string POSNumber = posConfig.GetPOSNumber().ToString();
+            POSNumber = "0" + POSNumber.Substring(POSNumber.Length - 1, 1);
+            string SaleDate = posConfig.GetSaleDate().Replace("-", "");
+            SaleDate = SaleDate.Substring(SaleDate.Length - 4, 4);
+            string Trans_No = posConfig.GetTransNo();
+
+            string strUbStoreId = "";
+            strUbStoreId = StoreID + POSNumber.Substring(1) + Trans_No + DateTime.Now.ToString("yy") + int.Parse(this.SaleDate.Substring(5, 2)).ToString("X") + DateTime.Now.ToString("ddHHmm");
+
+            return strUbStoreId;
+        }
+
+        Devices.Interface.iCreditCardReader FactoryNewCreditCardReader()
+        {
+            if (edcType == EDCType.CTBC)
+                return (Devices.Interface.iCreditCardReader)new POS.Web.Areas.Cashier.Device.Ctbc();
+            else if (edcType == EDCType.UBOT)
+                return (Devices.Interface.iCreditCardReader)new POS.Web.Areas.Cashier.Device.Ubot();
+            else if (edcType == EDCType.NEWUBOT)
+                return (Devices.Interface.iCreditCardReader)new POS.Web.Areas.Cashier.Device.UbotNew();
+
+            // 預設還是給聯邦，有需求的話可做更動
+            return (Devices.Interface.iCreditCardReader)new POS.Web.Areas.Cashier.Device.Ubot();
+        }
+        /// <summary>
+        /// 新聯邦
+        /// </summary>
+        /// <param name="rsp"></param>
+        /// <returns></returns>
+        private string S44UBContent1(CreditCardResponse rsp)
+        {
+            PosConfig posConfig = new PosConfig();
+            //門市代號
+            string StoreId = posConfig.GetStoreId();
+            //交易日期
+            string TransDate = posConfig.GetSaleDate().Replace("-", ""); // DateTime.Now.ToString("yyyyMMdd");
+            string TransTypeNum = TransTypeConvert(rsp.TransType);
+            StringBuilder transData = new StringBuilder();
+            transData.Append(TransTypeNum);
+            transData.Append(rsp.HostID);
+            transData.Append(rsp.InvoiceNo);
+            transData.Append(rsp.CardNo.PadRight(19, '_'));
+            transData.Append(rsp.TransAmt.PadLeft(10, '0'));
+            transData.Append(rsp.TransDate);
+            transData.Append(rsp.TransTime);
+            transData.Append(rsp.ApprovalCode);
+            transData.Append(rsp.RespCode);
+            transData.Append(rsp.TerminalID);
+            transData.Append(rsp.RefNo.PadRight(12, '_'));
+            if (rsp.InquiryType != "" && rsp.Amount1 != "")
+            {
+                //分期期數
+                transData.Append(rsp.InquiryType);
+                //首期金額
+                transData.Append(rsp.Amount1);
+                //每期金額
+                transData.Append(rsp.Amount2);
+            }
+            else
+            {
+                //分期期數
+                transData.Append("".PadRight(2, '_'));
+                //首期金額
+                transData.Append("".PadRight(10, '_'));
+                //每期金額
+                transData.Append("".PadRight(10, '_'));
+            }
+            //折抵金額
+            transData.Append("".PadRight(10, '_'));
+            if (rsp.TransType == "REFUND" || rsp.TransType == "INSTALLMENT REFUND" || rsp.TransType == "CUP REFUND")
+            {
+                //櫃號 退貨取MerchantCode
+                transData.Append(rsp.MerchantCode.Substring(0, 18));
+            }
+            else
+            {
+                //櫃號 正常流程取StoreID
+                transData.Append(rsp.StoreID.Substring(0, 18));
+            }
+
+            //取讀卡號交易別
+            transData.Append("".PadRight(2, '_'));
+            //發票載具查詢
+            transData.Append("N");
+            //transData.Append(rsp.InvoiceNo);
+
+            //電子發票卡號  
+            string SHACardNo = rsp.SHACardNo.Length >= 50 ? rsp.SHACardNo.Substring(0, 50) : rsp.SHACardNo;
+            transData.Append(SHACardNo.PadRight(60, '_'));
+            //商店代號 StoreID  
+            transData.Append(rsp.MerchantID);
+            //過卡方式
+            transData.Append(rsp.POSEntryMode);
+            //行動支付
+            transData.Append("".PadRight(1, '_'));
+            if (rsp.TransType == "SALE")
+            {
+                if (rsp.SmokeAmt > 0)
+                {
+                    //排他金額
+                    transData.Append((rsp.SmokeAmt).ToString().PadLeft(10, '0'));
+                }
+                else {
+                    //排他金額
+                    transData.Append("".PadRight(10, '_'));
+                }
+                if((rsp.ARCAmt + rsp.FeedAmt) > 0)
+                {
+                    //代收金額
+                    transData.Append((rsp.ARCAmt + rsp.FeedAmt).ToString().PadLeft(10, '0'));
+                }
+                else
+                {
+                    //代收金額
+                    transData.Append("".PadRight(10, '_'));
+                }          
+            }
+            else {
+                //排他金額
+                transData.Append("".PadRight(10, '0'));
+                //代收金額
+                transData.Append("".PadRight(10, '0'));
+            }
+            //批次號碼
+            transData.Append(rsp.BatchNo.Trim().PadRight(6, '_'));
+            //原交易日期
+            transData.Append(rsp.CUPTxnDate.Trim().PadRight(4, '_'));
+            //原交易時間
+            transData.Append(rsp.CUPTxnTime.Trim().PadRight(6, '_'));
+            //銀聯清算日期
+            transData.Append(rsp.CUPSettlementDate.Trim().PadRight(4, '_'));
+            //銀聯交易序號
+            transData.Append(rsp.CUPTxnSeq_No.Trim().PadRight(6, '_'));
+            //特店識別碼
+            transData.Append(rsp.MerchantCode);
+            //簽名判斷
+            transData.Append(rsp.SignFlag);
+            //詢問活動代碼
+            transData.Append("".PadRight(3, '_'));
+            //折扣總額
+            transData.Append("".PadRight(10, '_'));
+
+            //活動數量 Count (Max 3)
+            transData.Append("".PadRight(1, '_'));
+            //活動代碼 1
+            transData.Append("".PadRight(8, '_'));
+            //活動訊問結果 1
+            transData.Append("".PadRight(2, '_'));
+            //活動折抵金額或差額 1
+            transData.Append("".PadRight(10, '_'));
+
+            //活動代碼 2
+            transData.Append("".PadRight(8, '_'));
+            //活動訊問結果 2
+            transData.Append("".PadRight(2, '_'));
+            //活動折抵金額或差額 2
+            transData.Append("".PadRight(10, '_'));
+
+            //活動代碼 3
+            transData.Append("".PadRight(8, '_'));
+            //活動訊問結果 3
+            transData.Append("".PadRight(2, '_'));
+            //活動折抵金額或差額 3
+            transData.Append("".PadRight(10, '_'));
+
+            //預留擴充用
+            transData.Append("".PadRight(93, '_'));
+
+
+            //交易前餘額
+            //transData.Append("".PadRight(8, '_'));
+            //交易後餘額
+            //transData.Append("".PadRight(8, '_'));
+            //自動加值金額
+            //transData.Append("".PadRight(5, '_'));
+            //SAM ID.	
+            //transData.Append("".PadRight(16, '_'));
+            //門市代號    
+            //transData.Append("".PadRight(10, '_'));
+            //加密卡號(TDES)  
+            //transData.Append("".PadRight(48, '_'));
+            //transData.Append(rsp.MerchantID);
+            //transData.Append(rsp.POSEntryMode);
+            //行動支付
+            //transData.Append("N");
+            //排他金額
+            //transData.Append("".PadRight(8, '_'));
+            //代收金額
+            //transData.Append("".PadRight(8, '_'));
+            //電子支付交易序號
+            //transData.Append("".PadRight(20, '_'));
+            //電子支付訂單編號 
+            //transData.Append("".PadRight(20, '_'));
+            //transData.Append(rsp.BatchNo.Trim().PadRight(6, '_'));
+
+
+            //   transData.Append(rsp.MerchantCode.Trim().PadRight(24, '_'));
+            //   transData.Append(rsp.SignFlag);
+
+            return transData.ToString().PadRight(1024, '_');
+        }
+        /// <summary>
+        /// 舊聯邦
+        /// </summary>
+        /// <param name="rsp"></param>
+        /// <returns></returns>
+        private string S44OldUBContent1(CreditCardResponse rsp)
+        {
+            PosConfig posConfig = new PosConfig();
+            //門市代號
+            string StoreId = posConfig.GetStoreId();
+            //交易日期
+            string TransDate = posConfig.GetSaleDate().Replace("-", ""); // DateTime.Now.ToString("yyyyMMdd");
+            string TransTypeNum = TransTypeConvert(rsp.TransType);
+            StringBuilder transData = new StringBuilder();
+            transData.Append(TransTypeNum);
+            transData.Append(rsp.HostID);
+            transData.Append(rsp.InvoiceNo);
+            transData.Append(rsp.CardNo.PadRight(19, '_'));
+            transData.Append(rsp.TransAmt.PadLeft(10, '0'));
+            transData.Append(rsp.TransDate);
+            transData.Append(rsp.TransDateTime.ToString("HHmmss"));
+            transData.Append(rsp.ApprovalCode);
+            transData.Append(rsp.RespCode);
+            transData.Append(rsp.TerminalID);
+            transData.Append(rsp.RefNo.PadRight(12, '_'));
+
+
+            transData.Append("".PadRight(2, '_'));
+            transData.Append("".PadRight(10, '_'));
+            transData.Append("".PadRight(10, '_'));
+            transData.Append("".PadRight(10, '_'));
+
+            if (rsp.TransType == "REFUND" || rsp.TransType == "INSTALLMENT REFUND" || rsp.TransType == "CUP REFUND")
+            {
+                //櫃號 退貨取MerchantCode
+                transData.Append(rsp.MerchantCode.Substring(0, 18));
+            }
+            else
+            {
+                //櫃號
+                transData.Append("".PadRight(18, '_'));
+            }
+
+
+            transData.Append("".PadRight(2, '_'));
+
+            //發票載具查詢
+            transData.Append("N");
+
+            string SHACardNo = rsp.SHACardNo.Length >= 50 ? rsp.SHACardNo.Substring(0, 50) : rsp.SHACardNo;
+            transData.Append(SHACardNo.PadRight(60, '_'));
+
+            transData.Append("".PadRight(18, '_'));
+
+            transData.Append("".PadRight(26, '_'));
+
+            transData.Append("".PadRight(4, '_'));
+
+            transData.Append("".PadRight(6, '_'));
+
+            transData.Append("".PadRight(4, '_'));
+
+            transData.Append("".PadRight(6, '_'));
+
+            transData.Append("".PadRight(20, '_'));
+
+            transData.Append("".PadRight(26, '_'));
+
+            //商店代號   
+            transData.Append(rsp.MerchantID);
+            //過卡方式
+            transData.Append(rsp.POSEntryMode);
+            //行動支付
+            transData.Append("N");
+
+
+            transData.Append("".PadRight(56, '_'));
+            //批次號碼
+            transData.Append(rsp.BatchNo);
+            //CardType=銀聯卡
+            if (rsp.CardType.ToString() == "CUP")
+            {
+                transData.Append(rsp.CUPTxnDate);
+                transData.Append(rsp.CUPTxnTime);
+                transData.Append(rsp.CUPSettlementDate);
+                transData.Append(rsp.CUPTxnSeq_No);
+            }
+            else
+            {
+                transData.Append("".PadRight(20, '_'));
+            }
+            //特店識別碼
+            transData.Append(rsp.MerchantCode);
+            //簽名判斷
+            transData.Append(rsp.SignFlag);
+
+            //預留擴充用
+            transData.Append("".PadRight(22, '_'));
+
+            return transData.ToString().PadRight(1024, '_');
+        }
+        /// <summary>
+        /// 中信
+        /// </summary>
+        /// <param name="rsp"></param>
+        /// <returns></returns>
+        private string S44CtbcContent1(CreditCardResponse rsp)
+        {
+            PosConfig posConfig = new PosConfig();
+            //門市代號
+            string StoreId = posConfig.GetStoreId();
+            //交易日期
+            string TransDate = posConfig.GetSaleDate().Replace("-", ""); // DateTime.Now.ToString("yyyyMMdd");
+            StringBuilder transData = new StringBuilder();
+            if (rsp.TransType == "SALE")
+            {
+                transData.Append("P");                                          // TODO: P付款 R退款
+            }
+            else
+            {
+                transData.Append("R");                                          // TODO: P付款 R退款
+            }
+
+            transData.Append(rsp.MerchantID.Trim().PadRight(15, '_'));
+            //transData.Append(PosID.Substring(0, 4).PadRight(20, '_'));      // TODO: 門市名稱
+            //transData.Append(StoreId.PadRight(20, '_'));      // TODO: 門市名稱
+            transData.Append("".PadRight(20, '_'));      // TODO: 門市名稱
+            transData.Append(rsp.CardNo.Trim().PadRight(19, '_'));
+            transData.Append(rsp.TransDate);
+            transData.Append((int.Parse(rsp.TransAmt) * 100).ToString().PadLeft(12, '0'));           // TODO: from request?
+            transData.Append(rsp.ApprovalCode.Trim().PadRight(9, '_'));
+            transData.Append(rsp.TransType);
+            transData.Append(TransDate.PadRight(8, '_'));                          // TODO: 帳務日 yyyyMMdd
+            transData.Append("".PadRight(8, '_'));      // 撥款日，POS填空字串
+            transData.Append("".PadRight(8, '_'));      // EC代碼，POS填空字串
+            transData.Append(rsp.TerminalID.PadRight(8, '_'));
+            transData.Append("".PadRight(9, '_'));
+            transData.Append("".PadRight(9, '_'));
+            transData.Append("".PadRight(2, '_'));                         // TODO: from request
+            transData.Append("".PadRight(4, '_'));
+            transData.Append("".PadRight(6, '_'));
+            transData.Append("".PadRight(4, '_'));
+            transData.Append("".PadRight(6, '_'));
+            transData.Append("".PadRight(6, '_'));
+            transData.Append(rsp.InvoiceNo);                           // TODO: 後6碼?
+            transData.Append("".PadRight(4, '_'));      // 卡別(自行他行國外銀聯)，POS填空字串
+            transData.Append(rsp.CardType.ToString().PadRight(2, '_'));
+            transData.Append(rsp.TokenIndicator.PadRight(1, '_'));
+            transData.Append(rsp.WalletType.Trim().PadRight(1, '_'));
+            transData.Append(rsp.HostID.PadRight(2, '_'));                              // TODO: from request?
+            transData.Append(rsp.StoreID.Trim().PadRight(30, '_'));
+
+            return transData.ToString().PadRight(1024, '_');
+        }
+
+
+        /// <summary>
+        /// V0705.3.1
+        /// </summary>
+        /// <param name="resp"></param>
+        /// <param name="response"></param>
+        /// <returns></returns>
+        private string S44CtbcContent2(CreditCardResponse resp)
+        {
+            StringBuilder sb = new StringBuilder();
+            // 交易補充資料:
+            sb.Append(resp.SmokeAmt.ToString().PadRight(10, '_'));            // TODO: 菸品金額
+            sb.Append(resp.ARCCnt.ToString().PadRight(5, '_'));              // TODO: 代收筆數
+            sb.Append(resp.ARCAmt.ToString().PadRight(10, '_'));             // TODO: 代收金額
+            sb.Append(resp.SHACardNo.Trim().PadRight(50, '_'));
+            sb.Append(resp.FeedCnt.ToString().PadRight(4, '_'));              // TODO: 手續費筆數
+            sb.Append(resp.FeedAmt.ToString().PadRight(6, '_'));              // TODO: 手續費金額
+
+            return sb.ToString().PadRight(200, '_');
+        }
+        /// <summary>
+        /// V0705.3.1
+        /// </summary>
+        /// <param name="response"></param>
+        /// <returns></returns>
+        /// <summary>
+        /// V0705.3.1
+        /// </summary>
+        /// <param name="response"></param>
+        /// <returns></returns>
+        public string generateS44Telegram(CreditCardResponse response)
+        {
+            PosConfig pos = new PosConfig();
+            PosConfig posConfig = new PosConfig();
+            //門市代號
+            string StoreId = posConfig.GetStoreId();
+            //機號
+            int POSNumber = posConfig.GetPOSNumber();
+            //入帳日期
+            string SaleDate = posConfig.GetSaleDate().Replace("-", "");
+            //交易時間
+            string SaleTime = DateTime.Now.ToString("HHmmss");
+            //交易序號
+            string TransNo = posConfig.GetTransNo();
+            //交易日期
+            string TransDate = DateTime.Now.ToString("yyyyMMdd");
+            //廠商編號
+            string strCompanyCode = "";
+            var x = EDCService.edcType;
+
+            switch (EDCService.edcType)
+            {
+                case EDCType.CTBC:
+                    {
+                        strCompanyCode = "CTBC-EDC";
+                    }
+                    break;
+                case EDCType.UBOT:
+                    {
+                        strCompanyCode = "UBOT-EDC";
+                    }
+                    break;
+                case EDCType.NEWUBOT:
+                    {
+                        strCompanyCode = "UBOT-EDC-New";
+                    }
+                    break;
+            }
+
+            //在這裡設定店號、機號、交易時間
+            string Telegram = "S44"
+                            + StoreId
+                            + TransNo
+                            + POSNumber.ToString()
+                            + SaleDate
+                            + TransDate
+                            + SaleTime
+                            + strCompanyCode.PadRight(30, '_')
+                            + "1"
+                            ;
+            response.TransAmt = response.Amount.ToString();
+            //中信 新聯邦 舊聯邦
+            string Content1 = string.Empty;
+            if (EDCService.edcType == EDCType.CTBC)
+            {
+                Content1 = S44CtbcContent1(response);
+            }
+            else if (EDCService.edcType == EDCType.NEWUBOT)
+            {
+                Content1 = S44UBContent1(response);
+            }
+            else if (EDCService.edcType == EDCType.UBOT)
+            {
+                Content1 = S44OldUBContent1(response);
+            }
+            else
+            {
+                //未來有需求在加入
+                Content1 = "";
+            }
+
+            //string Content1 = (EDCService.edcType == EDCType.CTBC) ? S44CtbcContent1(response) : S44UBContent1(response);
+            Telegram = Telegram + Content1;
+
+            string Content2 = S44CtbcContent2(response);
+            Telegram = Telegram + Content2;
+            return Telegram.Replace(" ", "_");
+        }
+
+
+
+
+        /// <summary>
+        /// 交易類別轉換
+        /// </summary>
+        /// <param name="transStr"></param>
+        /// <returns></returns>
+        private string TransTypeConvert(string transStr)
+        {
+            string TransTypeNum = string.Empty;
+            switch (transStr)
+            {
+                case "SALE":
+                    TransTypeNum = "01";
+                    break;
+                case "REFUND":
+                    TransTypeNum = "02";
+                    break;
+                case "OFFLINE":
+                    TransTypeNum = "03";
+                    break;
+                case "INSTALLMENT":
+                    TransTypeNum = "04";
+                    break;
+                case "REDEEM":
+                    TransTypeNum = "05";
+                    break;
+                case "INSTALLMENT REFUND":
+                    TransTypeNum = "06";
+                    break;
+                case "REDEEM REFUND":
+                    TransTypeNum = "07";
+                    break;
+                case "PREAUTH":
+                    TransTypeNum = "19";
+                    break;
+                case "PREAUTH COMPLETE":
+                    TransTypeNum = "20";
+                    break;
+                case "VOID PREAUTH":
+                    TransTypeNum = "21";
+                    break;
+                case "VOID PREAUTH COMPLETE":
+                    TransTypeNum = "22";
+                    break;
+                case "TIP":
+                    TransTypeNum = "28";
+                    break;
+                case "VOID":
+                    TransTypeNum = "30";
+                    break;
+                case "SETTLE":
+                    TransTypeNum = "50";
+                    break;
+                case "REPRINT":
+                    TransTypeNum = "55";
+                    break;
+                case "TX START":
+                    TransTypeNum = "60";
+                    break;
+                case "TX END":
+                    TransTypeNum = "70";
+                    break;
+                case "NEED TO SIGN":
+                    TransTypeNum = "80";
+                    break;
+            }
+
+            return TransTypeNum;
+        }
+
+        private CreditCardResponse localPrevTransIsEDC()
+        {
+            POSLocalEntities db = new POSLocalEntities();
+
+            var lastTransNo = db.Trans_P.OrderByDescending(x => x.id).Select(x => x.Trans_No).FirstOrDefault();
+            var lastTransPayments = db.Trans_P.Where(x => x.Trans_No == lastTransNo).ToList();
+
+            var res = lastTransPayments.Where(x => PaymentIdAll.Contains(x.Pay_Id)).FirstOrDefault();
+            if (res is null) return null;
+            RefundCardType = Parser.FromSecType(res.Sec_Type);
+            DateTime POSDateTime;
+            if (edcType == EDCType.UBOT || edcType == EDCType.NEWUBOT)
+            {
+                string salesDate = res.Pay_Order_No.Substring(13, 1);
+                salesDate = Convert.ToInt32(salesDate, 16).ToString().PadLeft(2, '0');
+                salesDate = res.Pay_Order_No.Substring(11, 2) + salesDate + res.Pay_Order_No.Substring(14);
+                //店號(四碼) + 機號(一碼) + 交易序號(六碼) + 西元年末兩碼 + 月份(0~9不變10 > A 11 > B 12 > C)一碼 + 日(兩碼) + 時(兩碼) + 分(兩碼)
+                POSDateTime = DateTime.ParseExact(salesDate, "yyMMddHHmm", System.Globalization.CultureInfo.CurrentCulture);
+
+            }
+            else
+            {
+                POSDateTime = DateTime.ParseExact(res.Pay_Order_No.Substring(0, 14), "yyyyMMddHHmmss", System.Globalization.CultureInfo.CurrentCulture);
+            }
+            return new CreditCardResponse()
+            {
+                CardType = Parser.FromSecType(res.Sec_Type),
+                TerminalID = res.Terminal,
+                CardNo = res.Sec_No,
+                TransDateTime = DateTime.ParseExact(res.Credit_Date + res.Credit_Time, "yyMMddHHmmss", System.Globalization.CultureInfo.CurrentCulture),
+                ApprovalCode = res.Authorization,
+                StoreID = res.Pay_Order_No,
+                Amount = res.Amount ?? 0,
+                POSDateTime = POSDateTime// DateTime.ParseExact(res.Pay_Order_No.Substring(0, 14), "yyyyMMddHHmmss", System.Globalization.CultureInfo.CurrentCulture),
+            };
+        }
+
+        /// <summary>
+        /// 信用卡銷售交易(支付)
+        /// </summary>
+        /// <param name="amount"></param>
+        /// <param name="payType"></param>
+        /// <param name="HasSaleCollection"></param>
+        /// <returns></returns>
+        public CreditCardResponse Sale(decimal amount, CreditCardEnum.PayType payType = CreditCardEnum.PayType.TRANS_SALE, decimal arcAmt = 0,decimal FeedAmount = 0,decimal Smoke=0, bool HasSaleCollection = false, bool HasOnlineShoppingOrCloudFridge = false, decimal Splu = 0, decimal ExcludeAmt = 0)
+        {
+            CreditCardSaleData data = new CreditCardSaleData()
+            {
+                amt = amount,
+                arcAmt= arcAmt,
+                FeedAmt= FeedAmount,
+                Smoke = Smoke + Splu + ExcludeAmt,
+                StoreID = this.storeID,
+                POSDateTime = this.POSDateTime,
+                payType = payType,
+                HasSaleCollection = HasSaleCollection,
+                PaymentId = EDCService.PaymentId,
+                HasOnlineShoppingOrCloudFridge = HasOnlineShoppingOrCloudFridge
+            };
+            var cardreader = FactoryNewCreditCardReader();
+            var response = cardreader.sale(data);
+
+            if (response.status == CreditCardResponse.CreditCardStatus.Succ
+                || response.status == CreditCardResponse.CreditCardStatus.BatchFull
+                || response.status == CreditCardResponse.CreditCardStatus.NeedSign
+                || response.status == CreditCardResponse.CreditCardStatus.UploadFail)
+            {
+                // response.Amount = amount;                   // EDC不回傳amount
+                if (edcType == EDCType.UBOT || edcType == EDCType.NEWUBOT)
+                    response.StoreID = data.StoreID;
+                return response;
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// 信用卡銷售交易(需簽名的)
+        /// </summary>
+        /// <param name="StoreID"></param>
+        /// <param name="POSDateTime"></param>
+        /// <param name="payType"></param>
+        /// <param name="amount"></param>
+        /// <param name="HostID"></param>
+        /// <returns></returns>
+        public CreditCardResponse SignSale(string StoreID, DateTime POSDateTime, CreditCardEnum.PayType payType, decimal? amount = null, string HostID = "", CreditCardResponse ResponseSale = null)
+        {
+            CreditCardSignRequest data = new CreditCardSignRequest
+            {
+                StoreID = StoreID,
+                POSDateTime = POSDateTime,
+                payType = payType,
+                HostID = HostID,
+                Amount = amount
+            };
+
+            var cardreader = FactoryNewCreditCardReader();
+            var response = cardreader.signSale(data);
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(response.RespCode);
+            //2024/05/09 80錯誤不需發55，商店聯用01印
+            if (resp != CreditCardEnum.UbotNewRespCode.Approval)
+            {
+                response = ResponseSale;
+                response.ESignUploadSucc = false;//80失敗表示上傳電簽失敗
+            }
+
+            response.Amount = amount;                   // EDC不回傳amount
+
+            response.StoreID = storeIDForUBprint;
+            string strCardNoTit = response.CardNo.Substring(0, 1);
+
+            switch (strCardNoTit)
+            {
+                case "3":
+                    response.CardType = CreditCardEnum.CardType.JCB;
+                    break;
+                case "4":
+                    response.CardType = CreditCardEnum.CardType.VISA;
+                    break;
+                case "5":
+                    response.CardType = CreditCardEnum.CardType.MASTER;
+                    break;
+                case "6":
+                    response.CardType = CreditCardEnum.CardType.CUP;
+                    break;
+                default:
+                    break;
+            }
+            if (edcType == EDCType.NEWUBOT)
+            {
+                response.HostID = HostID;
+                //以銀行別判斷卡種
+                switch (HostID)
+                {
+                    //花旗銀行
+                    case "00":
+                        response.CardType = CreditCardEnum.CardType.DinerSclub;
+                        break;
+                    //美國運通
+                    case "01":
+                        response.EventCode = "30D8";
+                        response.CardType = CreditCardEnum.CardType.AE;
+                        break;
+                    //CUP銀聯
+                    case "02":
+                        response.EventCode = "30D2";
+                        response.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// 退刷 - 第一次電文
+        /// </summary>
+        /// <param name="amount">退刷金額(正數)</param>
+        /// <returns></returns>
+        public CreditCardResponse Refund(decimal amount,bool isCloudFridge,string strRefNo="0000000000000000")
+        {
+            CreditCardRefundRequest data = new CreditCardRefundRequest
+            {
+                amt = amount,
+                StoreID = this.storeID,
+                POSDateTime = this.POSDateTime,
+                strTransToRefund = strTransToRefund,
+                strTransNoToRefund = strTransNoToRefund,
+                RefNo= strRefNo,
+                IsCloudFridge = isCloudFridge
+            };
+
+            var cardreader = FactoryNewCreditCardReader();
+            var response = cardreader.refund(data, RefundCardType);
+            if (edcType == EDCType.UBOT || edcType == EDCType.NEWUBOT)
+                response.StoreID = data.StoreID;
+
+            response.Amount = amount;
+            if (response.status == CreditCardResponse.CreditCardStatus.Succ
+                || response.status == CreditCardResponse.CreditCardStatus.BatchFull
+                || response.status == CreditCardResponse.CreditCardStatus.NeedSign)
+            {
+                return response;
+            }
+
+            return new CreditCardResponse() {RespCode=response.RespCode };
+        }
+
+        /// <summary>
+        /// 退刷 - 第二次電文(簽名)
+        /// V0705.3.7
+        /// </summary>
+        /// <param name="StoreID">須同第一次電文</param>
+        /// <param name="POSDateTime">須同第一次電文</param>
+        /// <param name="amount">金額(EDC無回傳，直接帶入response)</param>
+        /// <returns></returns>
+        public CreditCardResponse SignRefund(string StoreID, DateTime POSDateTime, decimal? amount = null, string HostID = "",string strInvoiceNo="000000", CreditCardResponse ResponseRefund = null)
+        {
+            PosConfig pos = new PosConfig();
+            CreditCardSignRequest data = new CreditCardSignRequest
+            {
+                StoreID = StoreID,
+                POSDateTime = POSDateTime,
+                //從Refund取得
+                HostID = HostID,
+                Amount = amount,
+                InvoiceNo= strInvoiceNo
+            };
+            var cardreader = FactoryNewCreditCardReader();
+            var response = cardreader.signRefund(data);
+            var resp = CreditCardEnum.ParserUbotNew.RespCode(response.RespCode);
+            //2024/05/09 80錯誤不需發55，商店聯用02印
+            if (resp != CreditCardEnum.UbotNewRespCode.Approval)
+            {
+                response = ResponseRefund;
+                response.ESignUploadSucc = false;//80失敗表示上傳電簽失敗
+            }
+
+            if (response.HostID == "03")
+            {
+                response.EventCode = "30A7";
+            }
+            response.Amount = amount;                   // EDC不回傳amount
+
+            response.StoreID = storeIDForUBprint;
+            string strCardNoTit = response.CardNo.Substring(0, 1);
+
+            switch (strCardNoTit)
+            {
+                case "3":
+                    response.CardType = CreditCardEnum.CardType.JCB;
+                    break;
+                case "4":
+                    response.CardType = CreditCardEnum.CardType.VISA;
+                    break;
+                case "5":
+                    response.CardType = CreditCardEnum.CardType.MASTER;
+                    break;
+                case "6":
+                    response.CardType = CreditCardEnum.CardType.CUP;
+                    break;
+                default:
+                    break;
+            }
+            if (edcType == EDCType.NEWUBOT)
+            {
+                response.HostID = HostID;
+                //以銀行別判斷卡種
+                switch (HostID)
+                {
+                    //花旗銀行
+                    case "00":
+                        response.CardType = CreditCardEnum.CardType.DinerSclub;
+                        break;
+                    //美國運通
+                    case "01":
+                        response.EventCode = "30D8";
+                        response.CardType = CreditCardEnum.CardType.AE;
+                        break;
+                    //CUP銀聯
+                    case "02":
+                        response.EventCode = "30D2";
+                        response.CardType = CreditCardEnum.CardType.CUP;
+                        break;
+                }
+            }
+            else
+            {
+                //銀聯卡
+                if (!string.IsNullOrEmpty(response.CUPTxnSeq_No.Trim()))
+                    response.CardType = CreditCardEnum.CardType.CUP;
+                //如果HostID=05 卡別為AE美國運通卡
+                if (response.HostID == "05")
+                {
+                    response.EventCode = "30C8";
+                    response.CardType = CreditCardEnum.CardType.AE;
+                }
+            }
+
+            return response;
+        }
+
+        //如果上一筆是EDC交易，就衝印，否則返回錯誤信息
+        public CreditCardEnum.ReprintStatus Reprint(out CreditCardResponse response)
+        {
+            response = new CreditCardResponse();
+
+            var prevEDC = localPrevTransIsEDC();
+            if (prevEDC is null) return CreditCardEnum.ReprintStatus.NOTEDC;
+            CreditCardReprintRequest data = new CreditCardReprintRequest() { StoreID = prevEDC.StoreID, POSDateTime = this.POSDateTime };
+
+            var cardreader = FactoryNewCreditCardReader();
+            response = cardreader.reprint(data, RefundCardType);
+            response.Amount = prevEDC.Amount;
+
+            if (edcType == EDCType.CTBC)
+            {
+                if (response.CardType != prevEDC.CardType
+                || response.TerminalID != prevEDC.TerminalID
+                || response.CardNo != prevEDC.CardNo
+                || response.TransDateTime != prevEDC.TransDateTime
+                || response.InvoiceNo.Substring(0, 6) != prevEDC.ApprovalCode
+                || response.StoreID != prevEDC.StoreID
+                || response.POSDateTime != prevEDC.POSDateTime)
+                {
+                    return CreditCardEnum.ReprintStatus.NOTMATCH;
+                }
+
+            }
+            else
+            {
+                if (response.TerminalID != prevEDC.TerminalID
+                || response.CardNo != prevEDC.CardNo
+                || response.TransDateTime != prevEDC.TransDateTime
+                || response.InvoiceNo.Substring(0, 6) != prevEDC.ApprovalCode)
+                {
+                    return CreditCardEnum.ReprintStatus.NOTMATCH;
+                }
+            }
+
+            return CreditCardEnum.ReprintStatus.SUCC;
+        }
+
+        public CreditCardEnum.ActionStatus Settlement(string HostID)
+        {
+            CreditCardResponse response;
+
+            var cardreader = FactoryNewCreditCardReader();
+            CreditCardSettleRequest data = new CreditCardSettleRequest()
+            {
+                HostID = HostID,
+                StoreID = this.storeID,
+                POSDateTime = this.POSDateTime
+            };
+            response = cardreader.settlement(data);
+
+            if (response.status == CreditCardResponse.CreditCardStatus.Succ) return CreditCardEnum.ActionStatus.SUCC;
+            if (response.status != CreditCardResponse.CreditCardStatus.Succ) return CreditCardEnum.ActionStatus.FAIL;
+            return CreditCardEnum.ActionStatus.UNKNOWN;
+        }
+        /// <summary>
+        /// V0705.4.3  結帳電文
+        /// </summary>
+        /// <returns></returns>
+        public CreditSettleResponse SettlementAll()
+        {
+            CreditSettleResponse result = new CreditSettleResponse();
+            CreditCardEnum.ActionStatus res;
+            result.Credit = true;
+            result.Ins = true;
+            result.CUP = true;
+            result.AE = true;
+
+            #region Settlement
+            if (edcType == EDCType.CTBC)
+            {
+                generateStoreID();
+                res = Settlement(CreditCardEnum.CtbcHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+
+                //generateStoreID();
+                //res = Settlement(CreditCardEnum.CtbcHostID.POINTREDEEM);
+                //if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.CtbcHostID.PERIOD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.Ins = false;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.CtbcHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.CtbcHostID.AE.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
+            }
+            else if (edcType == EDCType.UBOT)
+            {
+                generateStoreID();
+                res = Settlement(CreditCardEnum.UbotHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.UbotHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+            }
+            else if (edcType == EDCType.NEWUBOT)
+            {
+                generateStoreID();
+                res = Settlement(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+
+                //generateStoreID();
+                //res = Settlement(CreditCardEnum.UbotNewHostID.PERIOD.ToCode());
+                //if (res != CreditCardEnum.ActionStatus.SUCC) result.Ins = false;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.UbotNewHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+
+                generateStoreID();
+                res = Settlement(CreditCardEnum.UbotNewHostID.AE.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
+            }
+
+            #endregion
+
+
+            return result;
+        }
+
+        public CreditCardEnum.ActionStatus ChangeKey(string HostID)
+        {
+            CreditCardResponse response;
+
+            var cardreader = FactoryNewCreditCardReader();
+            CreditCardChangeKeyRequest data = new CreditCardChangeKeyRequest()
+            {
+                HostID = HostID,
+                StoreID = this.storeID,
+                POSDateTime = this.POSDateTime
+            };
+            response = cardreader.changeKey(data);
+
+            if (response.status == CreditCardResponse.CreditCardStatus.Succ) return CreditCardEnum.ActionStatus.SUCC;
+            if (response.status != CreditCardResponse.CreditCardStatus.Succ) return CreditCardEnum.ActionStatus.FAIL;
+            return CreditCardEnum.ActionStatus.UNKNOWN;
+        }
+
+        public CreditCardEnum.ActionStatus ChangeKeyAll()
+        {
+            bool hasFail = false;
+            CreditCardEnum.ActionStatus res;
+
+            #region ChangeKey
+            if (edcType == EDCType.CTBC)
+            {
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.CtbcHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                //generateStoreID();
+                //res = ChangeKey(CreditCardEnum.CtbcHostID.POINTREDEEM);
+                //if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.CtbcHostID.PERIOD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.CtbcHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                //generateStoreID();
+                //res = ChangeKey(CreditCardEnum.CtbcHostID.AE);
+                //if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+            }
+            else if (edcType == EDCType.UBOT)
+            {
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.UbotHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.UbotHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+            }
+            else if (edcType == EDCType.NEWUBOT)
+            {
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+
+                generateStoreID();
+                res = ChangeKey(CreditCardEnum.UbotNewHostID.CUP.ToCode());
+                if (res != CreditCardEnum.ActionStatus.SUCC) hasFail = true;
+            }
+
+            #endregion
+
+            if (hasFail) return CreditCardEnum.ActionStatus.FAIL;
+            return CreditCardEnum.ActionStatus.SUCC;
+        }
+
+        public CreditCardEnum.ActionStatus OpenCtbcEDC()
+        {
+            try
+            {
+                CreditCardResponse response = new CreditCardResponse();
+
+                CreditCardReprintRequest data = new CreditCardReprintRequest() { StoreID = this.storeID, POSDateTime = this.POSDateTime };
+
+                var cardreader = new POS.Web.Areas.Cashier.Device.Ctbc();
+                response = cardreader.reprint(data, CreditCardEnum.CardType.VISA);
+                if (response.status == CreditCardResponse.CreditCardStatus.Succ)
+                {
+                    return CreditCardEnum.ActionStatus.SUCC;
+                }
+            }
+            catch
+            {
+                return CreditCardEnum.ActionStatus.FAIL;
+            }
+            return CreditCardEnum.ActionStatus.FAIL;
+        }
+
+        static class Parser
+        {
+            static internal CreditCardEnum.CardType FromSecType(string type)
+            {
+                switch (type)
+                {
+                    case "V":
+                        return CreditCardEnum.CardType.VISA;
+                    case "A":
+                        return CreditCardEnum.CardType.AE;
+                    case "J":
+                        return CreditCardEnum.CardType.JCB;
+                    case "C":
+                        return CreditCardEnum.CardType.CUP;
+                    case "N":
+                        return CreditCardEnum.CardType.NCCC;
+                    case "M":
+                        return CreditCardEnum.CardType.MASTER;
+                    default:
+                        return CreditCardEnum.CardType.UNKNOWN;
+                }
+            }
+        }
+    }
 }
-finally
+UbotNewTradeModel:
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace POS.Devices.Models
 {
-    button2.Enabled = true;
-    this.Cursor = Cursors.Default;
-}
-```
+    [Serializable]
+    public class UbotNewTradeModel
+    {
+        /// </summary>
+        private string _TransType;
+        /// <summary>
+        /// 銀行別 
+        /// </summary>
+        private string _HostID;
+        /// <summary>
+        /// 調閱編號 
+        /// </summary>
+        private string _InvoiceNo;
+        /// <summary>
+        /// 卡號
+        /// </summary>
+        private string _CardNo;
+        /// <summary>
+        /// 交易金額：整數十位，不包含小數
+        /// </summary>
+        private string _TransAmt;
+        /// <summary>
+        /// 交易日期，西元年（Yymmdd） 
+        /// </summary>
+        private string _TransDate;
+        /// <summary>
+        /// 交易時間，24小時制（Hhmmss） 
+        /// </summary>
+        private string _TransTime;
+        /// <summary>
+        /// 授權碼，左靠右補空白 
+        /// </summary>
+        private string _ApprovalCode;
+        /// <summary>
+        /// 回覆代碼 
+        /// </summary>
+        private string _RespCode;
+        /// <summary>
+        /// 端末機編號 
+        /// </summary>
+        private string _TerminalID;
+        /// <summary>
+        /// 銀行交易序號 
+        /// </summary>
+        private string _RefNo;
+        /// <summary>
+        /// 分期期數
+        /// </summary>
+        private string _InstallmentPeriod;
+        /// <summary>
+        /// 首期金額
+        /// </summary>
+        private string _DownPayment;
+        /// <summary>
+        /// 每期金額
+        /// </summary>
+        private string _InstallmentPayment;
+        /// <summary>
+        /// 折抵金額
+        /// </summary>
+        private string _RedeemAmt;
+        /// <summary>
+        /// 櫃號，左靠右補空白此欄位由萊爾富自行決定內容定義
+        /// </summary>
+        private string _StoreID;
+        /// <summary>
+        /// 讀取卡號交易別
+        /// </summary>
+        private string _StartTransType;
+        /// <summary>
+        /// 發票載具查詢
+        /// </summary>
+        private string _TrlInqFlag;
+        /// <summary>
+        /// 信用卡當電子發票載具
+        /// SHA-256 產生之 SHA 值
+        /// </summary>
+        private string _SHACardNo;
+        /// <summary>
+        /// 商店代號   左靠右補空白含檢查碼
+        /// </summary>
+        private string _MerchantID;
+        /// <summary>
+        /// 過卡方式
+        /// </summary>
+        private string _POSEntryMode;
+        /// <summary>
+        /// 行動支付
+        /// </summary>
+        private string _TokenIndicator;
+        /// <summary>
+        /// 排他金額
+        /// </summary>
+        private string _ExceptionAmt;
+        /// <summary>
+        /// 代收金額
+        /// </summary>
+        private string _SubAmt;
+        /// <summary>
+        /// 批次號碼，左靠右補空白 
+        /// </summary>
+        private string _BatchNo;
+        /// <summary>
+        /// 銀聯卡交易傳輸日期(MMDD) 
+        /// </summary>
+        private string _CUPTxnDate;
+        /// <summary>
+        /// 銀聯卡交易傳輸時間(hhmmdd) 
+        /// </summary>
+        private string _CUPTxnTime;
+        /// <summary>
+        /// 銀聯卡清算日(MMDD)
+        /// </summary>
+        private string _CUPSettlementDate;
+        /// <summary>
+        /// 銀聯卡交易序號
+        /// </summary>
+        private string _CUPTxnSeq_No;
+        /// <summary>
+        /// 特店識別碼
+        /// </summary>
+        private string _MerchantCode;
+        /// <summary>
+        /// 簽名判斷
+        /// </summary>
+        private string _SignFlag;
 
-}
+        /// <summary>
+        /// 詢問活動代碼
+        /// </summary>
+        private string _RequestCampaignID;
+        /// <summary>
+        /// 折扣總額
+        /// </summary>
+        private string _DiscountAmount;
+        /// <summary>
+        /// 活動數量(MAX:3)
+        /// </summary>
+        private string _Campaign_Count;
+        /// <summary>
+        /// 活動代碼(第一組)
+        /// </summary>
+        private string _Campaign_SN_1;
+        /// <summary>
+        /// 活動詢問結果(第一組)
+        /// </summary>
+        private string _Campaign_Result_1;
+        /// <summary>
+        /// 活動折抵金額或差額(第一組)
+        /// </summary>
+        private string _Campaign_Discount_1;
+        /// <summary>
+        /// 活動代碼(第二組)
+        /// </summary>
+        private string _Campaign_SN_2;
+        /// <summary>
+        /// 活動詢問結果(第二組)
+        /// </summary>
+        private string _Campaign_Result_2;
+        /// <summary>
+        /// 活動折抵金額或差額(第二組)
+        /// </summary>
+        private string _Campaign_Discount_2;
+        /// <summary>
+        /// 活動代碼(第三組)
+        /// </summary>
+        private string _Campaign_SN_3;
+        /// <summary>
+        /// 活動詢問結果(第三組)
+        /// </summary>
+        private string _Campaign_Result_3;
+        /// <summary>
+        /// 活動折抵金額或差額(第三組)
+        /// </summary>
+        private string _Campaign_Discount_3;
 
-private void button3_Click(object sender, EventArgs e)
+        /// <summary>
+        /// reserved
+        /// </summary>
+        private string _Reserved;
+
+
+        /// <summary>
+        /// 交易別 
+        /// </summary>
+        public string TransType { get => FixRight(_TransType, 2); set => _TransType = value; }
+        /// <summary>
+        /// 銀行別 
+        /// </summary>
+        public string HostID { get => FixRight(_HostID, 2); set => _HostID = value; }
+        /// <summary>
+        /// 調閱編號 
+        /// </summary>
+        public string InvoiceNo { get => FixLeft(_InvoiceNo, 6); set => _InvoiceNo = value; }
+        /// <summary>
+        /// 卡號
+        /// </summary>
+        public string CardNo { get => FixLeft(_CardNo, 19); set => _CardNo = value; }
+        /// <summary>
+        /// 交易金額：整數十位，不包含小數
+        /// </summary>
+        public string TransAmt { get => FixRight(_TransAmt, 10); set => _TransAmt = value; }
+        /// <summary>
+        /// 交易日期，西元年（Yymmdd） 
+        /// </summary>
+        public string TransDate { get => FixLeft(_TransDate, 6); set => _TransDate = value; }
+        /// <summary>
+        /// 交易時間，24小時制（Hhmmss） 
+        /// </summary>
+        public string TransTime { get => FixLeft(_TransTime, 6); set => _TransTime = value; }
+        /// <summary>
+        /// 授權碼，左靠右補空白 
+        /// </summary>
+        public string ApprovalCode { get => FixLeft(_ApprovalCode, 6); set => _ApprovalCode = value; }
+        /// <summary>
+        /// 回覆代碼 
+        /// </summary>
+        public string RespCode { get => FixLeft(_RespCode, 4); set => _RespCode = value; }
+        /// <summary>
+        /// 端末機編號 
+        /// </summary>
+        public string TerminalID { get => FixLeft(_TerminalID, 8); set => _TerminalID = value; }
+        /// <summary>
+        /// 銀行交易序號 
+        /// </summary>
+        public string RefNo { get => FixRight(_RefNo, 12); set => _RefNo = value; }
+        /// <summary>
+        /// 分期期數
+        /// </summary>
+        public string InstallmentPeriod { get => FixRight(_InstallmentPeriod, 2); set => _InstallmentPeriod = value; }
+        /// <summary>
+        /// 首期金額
+        /// </summary>
+        public string DownPayment { get => FixRight(_DownPayment, 10); set => _DownPayment = value; }
+        /// <summary>
+        /// 每期金額
+        /// </summary>
+        public string InstallmentPayment { get => FixRight(_InstallmentPayment, 10); set => _InstallmentPayment = value; }
+        /// <summary>
+        /// 折抵金額
+        /// </summary>
+        public string RedeemAmt { get => FixRight(_RedeemAmt, 10); set => _RedeemAmt = value; }
+        /// <summary>
+        /// 櫃號，左靠右補空白此欄位由萊爾富自行決定內容定義
+        /// </summary>
+        public string StoreID { get => FixLeft(_StoreID, 18); set => _StoreID = value; }
+        /// <summary>
+        /// 讀取卡號交易別
+        /// </summary>
+        public string StartTransType { get => FixLeft(_StartTransType, 2); set => _StartTransType = value; }
+        /// <summary>
+        /// 發票載具查詢
+        /// </summary>
+        public string TrlInqFlag { get => FixRight(_TrlInqFlag, 1); set => _TrlInqFlag = value; }
+        /// <summary>
+        /// 信用卡當電子發票載具
+        /// SHA-256 產生之 SHA 值
+        /// </summary>
+        public string SHACardNo { get => FixLeft(_SHACardNo, 60); set => _SHACardNo = value; }
+        /// <summary>
+        /// 商店代號   左靠右補空白含檢查碼
+        /// </summary>
+        public string MerchantID { get => FixLeft(_MerchantID, 15); set => _MerchantID = value; }
+        /// <summary>
+        /// 過卡方式
+        /// </summary>
+        public string POSEntryMode { get => FixLeft(_POSEntryMode, 2); set => _POSEntryMode = value; }
+        /// <summary>
+        /// 行動支付
+        /// </summary>
+        public string TokenIndicator { get => FixLeft(_TokenIndicator, 1); set => _TokenIndicator = value; }
+        /// <summary>
+        /// 排他金額
+        /// </summary>
+        public string ExceptionAmt { get => FixRight(_ExceptionAmt, 10); set => _ExceptionAmt = value; }
+        /// <summary>
+        /// 代收金額
+        /// </summary>
+        public string SubAmt { get => FixRight(_SubAmt, 10); set => _SubAmt = value; }
+        /// <summary>
+        /// 批次號碼，左靠右補空白 
+        /// </summary>
+        public string BatchNo { get => FixLeft(_BatchNo, 6); set => _BatchNo = value; }
+        /// <summary>
+        /// 銀聯卡交易傳輸日期(_MMDD) 
+        /// </summary>
+        public string CUPTxnDate { get => FixLeft(_CUPTxnDate, 4); set => _CUPTxnDate = value; }
+        /// <summary>
+        /// 銀聯卡交易傳輸時間(_hhmmdd) 
+        /// </summary>
+        public string CUPTxnTime { get => FixLeft(_CUPTxnTime, 6); set => _CUPTxnTime = value; }
+        /// <summary>
+        /// 銀聯卡清算日(_MMDD)
+        /// </summary>
+        public string CUPSettlementDate { get => FixLeft(_CUPSettlementDate, 4); set => _CUPSettlementDate = value; }
+        /// <summary>
+        /// 銀聯卡交易序號
+        /// </summary>
+        public string CUPTxnSeq_No { get => FixRight(_CUPTxnSeq_No, 6); set => _CUPTxnSeq_No = value; }
+        /// <summary>
+        /// 特店識別碼
+        /// </summary>
+        public string MerchantCode { get => FixLeft(_MerchantCode, 22); set => _MerchantCode = value; }
+        /// <summary>
+        /// 簽名判斷
+        /// </summary>
+        public string SignFlag { get => FixRight(_SignFlag, 1); set => _SignFlag = value; }
+
+        //此區塊等待之後規格開放
+        public string RequestCampaignID { get => FixLeft(_RequestCampaignID, 3); set => _RequestCampaignID = value; }
+        public string DiscountAmount { get => FixLeft(_DiscountAmount, 10); set => _DiscountAmount = value; }
+        public string Campaign_Count { get => FixLeft(_Campaign_Count, 1); set => _Campaign_Count = value; }
+        public string Campaign_SN_1 { get => FixLeft(_Campaign_SN_1, 8); set => _Campaign_SN_1 = value; }
+        public string Campaign_Result_1 { get => FixLeft(_Campaign_Result_1, 2); set => _Campaign_Result_1 = value; }
+        public string Campaign_Discount_1 { get => FixLeft(_Campaign_Discount_1, 10); set => _Campaign_Discount_1 = value; }
+        public string Campaign_SN_2 { get => FixLeft(_Campaign_SN_2, 8); set => _Campaign_SN_2 = value; }
+        public string Campaign_Result_2 { get => FixLeft(_Campaign_Result_2, 2); set => _Campaign_Result_2 = value; }
+        public string Campaign_Discount_2 { get => FixLeft(_Campaign_Discount_2, 10); set => _Campaign_Discount_2 = value; }
+        public string Campaign_SN_3 { get => FixLeft(_Campaign_SN_3, 8); set => _Campaign_SN_3 = value; }
+        public string Campaign_Result_3 { get => FixLeft(_Campaign_Result_3, 2); set => _Campaign_Result_3 = value; }
+        public string Campaign_Discount_3 { get => FixLeft(_Campaign_Discount_3, 10); set => _Campaign_Discount_3 = value; }
+
+        /// <summary>
+        /// reserved
+        /// </summary>
+        public string Reserved { get => FixLeft(_Reserved, 95); set => _Reserved = value; }
+
+
+
+        private string FixLeft(string orig, int len)
+        {
+            var str = (orig ?? "").PadRight(len, ' ');
+            return str.Substring(0, len);
+        }
+
+        private string FixRight(string orig, int len)
+        {
+            var str = (orig ?? "                              ").PadLeft(len, '0');
+            return str.Substring(str.Length - len, len);
+        }
+
+
+        public UbotNewTradeModel() { }
+
+        public UbotNewTradeModel(string strTrade)
+        {
+            int i = 0;
+            this.TransType = tokenize(strTrade, 2, ref i);
+            this.HostID = tokenize(strTrade, 2, ref i);
+            this.InvoiceNo = tokenize(strTrade, 6, ref i);
+            this.CardNo = tokenize(strTrade, 19, ref i);
+            this.TransAmt = tokenize(strTrade, 10, ref i);
+            this.TransDate = tokenize(strTrade, 6, ref i);
+            this.TransTime = tokenize(strTrade, 6, ref i);
+            this.ApprovalCode = tokenize(strTrade, 6, ref i);
+            this.RespCode = tokenize(strTrade, 4, ref i);
+            this.TerminalID = tokenize(strTrade, 8, ref i);
+            this.RefNo = tokenize(strTrade, 12, ref i);
+            this.InstallmentPeriod = tokenize(strTrade, 2, ref i);
+            this.DownPayment = tokenize(strTrade, 10, ref i);
+            this.InstallmentPayment = tokenize(strTrade, 10, ref i);
+            this.RedeemAmt = tokenize(strTrade, 10, ref i);
+            this.StoreID = tokenize(strTrade, 18, ref i);
+            this.StartTransType = tokenize(strTrade, 2, ref i);
+            this.TrlInqFlag = tokenize(strTrade, 1, ref i);
+            this.SHACardNo = tokenize(strTrade, 60, ref i);
+            this.MerchantID = tokenize(strTrade, 15, ref i);
+            this.POSEntryMode = tokenize(strTrade, 2, ref i);
+            this.TokenIndicator = tokenize(strTrade, 1, ref i);
+            this.ExceptionAmt = tokenize(strTrade, 10, ref i);
+            this.SubAmt = tokenize(strTrade, 10, ref i);
+            this.BatchNo = tokenize(strTrade, 6, ref i);
+            this.CUPTxnDate = tokenize(strTrade, 4, ref i);
+            this.CUPTxnTime = tokenize(strTrade, 6, ref i);
+            this.CUPSettlementDate = tokenize(strTrade, 4, ref i);
+            this.CUPTxnSeq_No = tokenize(strTrade, 6, ref i);
+            this.MerchantCode = tokenize(strTrade, 22, ref i);
+            this.SignFlag = tokenize(strTrade, 1, ref i);
+            this.RequestCampaignID = tokenize(strTrade, 3, ref i);
+            this.DiscountAmount = tokenize(strTrade, 10, ref i, "0");
+            this.Campaign_Count = tokenize(strTrade, 1, ref i);
+            this.Campaign_SN_1 = tokenize(strTrade, 8, ref i);
+            this.Campaign_Result_1 = tokenize(strTrade, 2, ref i);
+            this.Campaign_Discount_1 = tokenize(strTrade, 10, ref i);
+            this.Campaign_SN_2 = tokenize(strTrade, 8, ref i);
+            this.Campaign_Result_2 = tokenize(strTrade, 2, ref i);
+            this.Campaign_Discount_2 = tokenize(strTrade, 10, ref i);
+            this.Campaign_SN_3 = tokenize(strTrade, 8, ref i);
+            this.Campaign_Result_3 = tokenize(strTrade, 2, ref i);
+            this.Campaign_Discount_3 = tokenize(strTrade, 10, ref i);
+            this.Reserved = tokenize(strTrade, 95, ref i);
+        }
+        private string tokenize(string s, int len, ref int index,string d = null)
+        {
+            index += len;
+            string ret = s.Substring(index - len, len);
+
+            if ((d != null) && (ret.Trim() == "")) 
+            {
+                ret = d;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// BoIsLogs=True 是寫log使用，卡號只顯示前6後4
+        /// BoIsLogs=False 是串起來給EDC使用
+        /// </summary>
+        public String ToStringLine(Boolean BoIsLogs)
+        {
+            string strCardno = this.CardNo;
+
+            if (BoIsLogs)
+            {
+               if ((strCardno.Length > 12) && (!string.IsNullOrEmpty(strCardno.Trim())))
+                  strCardno = strCardno.Substring(0, 6) + "******" + strCardno.Substring(12, strCardno.Length - 12);
+            }
+            StringBuilder sbUbotTrade = new StringBuilder();
+            sbUbotTrade.Append(this.TransType);
+            sbUbotTrade.Append(this.HostID);
+            sbUbotTrade.Append(this.InvoiceNo);
+            sbUbotTrade.Append(strCardno);
+            sbUbotTrade.Append(this.TransAmt);
+            sbUbotTrade.Append(this.TransDate);
+            sbUbotTrade.Append(this.TransTime);
+            sbUbotTrade.Append(this.ApprovalCode);
+            sbUbotTrade.Append(this.RespCode);
+            sbUbotTrade.Append(this.TerminalID);
+            sbUbotTrade.Append(this.RefNo);
+            sbUbotTrade.Append(this.InstallmentPeriod);
+            sbUbotTrade.Append(this.DownPayment);
+            sbUbotTrade.Append(this.InstallmentPayment);
+            sbUbotTrade.Append(this.RedeemAmt);
+            sbUbotTrade.Append(this.StoreID);
+            sbUbotTrade.Append(this.StartTransType);
+            sbUbotTrade.Append(this.TrlInqFlag);
+            sbUbotTrade.Append(this.SHACardNo);
+            sbUbotTrade.Append(this.MerchantID);
+            sbUbotTrade.Append(this.POSEntryMode);
+            sbUbotTrade.Append(this.TokenIndicator);
+            sbUbotTrade.Append(this.ExceptionAmt);
+            sbUbotTrade.Append(this.SubAmt);
+            sbUbotTrade.Append(this.BatchNo);
+            sbUbotTrade.Append(this.CUPTxnDate);
+            sbUbotTrade.Append(this.CUPTxnTime);
+            sbUbotTrade.Append(this.CUPSettlementDate);
+            sbUbotTrade.Append(this.CUPTxnSeq_No);
+            sbUbotTrade.Append(this.MerchantCode);
+            sbUbotTrade.Append(this.SignFlag);
+            sbUbotTrade.Append(this.RequestCampaignID);
+            sbUbotTrade.Append(this.DiscountAmount);
+            sbUbotTrade.Append(this.Campaign_Count);
+            sbUbotTrade.Append(this.Campaign_SN_1);
+            sbUbotTrade.Append(this.Campaign_Result_1);
+            sbUbotTrade.Append(this.Campaign_Discount_1);
+            sbUbotTrade.Append(this.Campaign_SN_2);
+            sbUbotTrade.Append(this.Campaign_Result_2);
+            sbUbotTrade.Append(this.Campaign_Discount_2);
+            sbUbotTrade.Append(this.Campaign_SN_3);
+            sbUbotTrade.Append(this.Campaign_Result_3);
+            sbUbotTrade.Append(this.Campaign_Discount_3);
+            sbUbotTrade.Append(this.Reserved);
+
+            return sbUbotTrade.ToString();
+        }
+
+    }
+
+    public class UbotNewActModel
+    {
+        public string Campaign_SN { get; set; }
+        public string Campaign_Result { get; set; }
+    }
+}
+DeviceSharedFunctions:
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace POS.Devices
 {
-try
+    public class DeviceSharedFunctions
+    {
+        /// <summary>
+        /// 建立版本資訊  建版號txt
+        /// </summary>
+        /// <param name="strVersion">版本代碼</param>
+        /// <returns></returns>
+        public void CreateDeviceVersionFile(string deviceVerisonFileName, string version)
+        {
+
+            string strfolderPath = @"c:\POS\Web\Register\DeviceVersion\";
+            // 判斷資料夾是否存在
+            if (!Directory.Exists(strfolderPath))
+            {
+                // 自動建立資料夾
+                Directory.CreateDirectory(strfolderPath);
+            }
+
+            string[] files = Directory.GetFiles(strfolderPath, deviceVerisonFileName + "*", SearchOption.TopDirectoryOnly);
+            string strVersionFileName = deviceVerisonFileName + @"_" + version + ".txt";
+            string newVesionFileName = strfolderPath + strVersionFileName;
+            if (files.Length == 0)
+            {
+                // 建立空白檔案
+                using (FileStream fs = File.Create(newVesionFileName))
+                {
+                    // 不寫入任何內容，保持空白
+                }
+            }
+            else
+            {
+                if (files[0] != newVesionFileName)
+                {
+                    File.Move(files[0], newVesionFileName);
+                    // 更新修改日期為現在
+                    File.SetLastWriteTime(newVesionFileName, DateTime.Now);
+                }
+            }
+        }
+        /// <summary>
+        /// 確認是否有新版本程式需要更新
+        /// </summary>
+        /// <param name="strVersion">版本代碼</param>
+        /// <returns></returns>
+        public string GetDeviceVersion(string deviceVerisonFileName)
+        {
+            string version = "";
+            string strfolderPath = @"c:\POS\Web\Register\DeviceVersion\";
+            // 判斷資料夾是否存在
+            if (Directory.Exists(strfolderPath))
+            {
+                string[] files = Directory.GetFiles(strfolderPath, deviceVerisonFileName + "*", SearchOption.TopDirectoryOnly);
+                if (files.Length > 0)
+                {
+                    string fileNameWithoutExt = Path.GetFileNameWithoutExtension(files[0]);
+                    version = fileNameWithoutExt.Split('_')[1];
+
+                }
+            }
+            return version;
+        }
+    }
+}
+
+畫面:
+using POS.Web.Areas.Cashier.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using POS.Web.Areas.Cashier.Services;
+
+namespace POS.Web.Areas.Cashier.Controllers
 {
-// **記錄按鈕執行**
-Logger.WriteLog(“執行3.清除設定檔資料”);
+    public class BlockController : BaseController
+    {
+        // GET: Cashier/Block
+        /// <summary>
+        /// 右半部提示訊息
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult RightMessageIndex(BlockModels.RightMessageIndexModel model)
+        {
+            //Todo:資料庫取得提示訊息
+            string message = string.IsNullOrEmpty(model.Message) ? TempData["RightMessage"] as string : model.Message;
+            ViewBag.RightMessage = string.IsNullOrEmpty(message) ? "操作提示：請輸入收銀員編號" : message;
+            ViewBag.Id = model.Id;
+            return PartialView(model);
+        }
 
-```
-    ExecuteDeleteSQL();
-    MessageBox.Show("已刪除完成！", "清除完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        /// <summary>
+        /// 右半部主標題
+        /// </summary>
+        /// <param name="strTitle"></param>
+        /// <returns></returns>
+        public ActionResult RightMainPageTitle(BlockModels.RightMainPageTitleModel model)
+        {
+            //Todo:多語系
+            model.Title = string.IsNullOrEmpty(model.Title) ? TempData["Title"] as string : model.Title;
+            ViewBag.MainPageTitle = string.IsNullOrEmpty(model.Title) ? "主畫面" : model.Title;
+            return PartialView(model.BackDisplayStyle);
+        }
 
-    // 清除完成後重置按鈕狀態
-    InitializeButtons();
+        /// <summary>
+        /// 左半部提示訊息
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult LeftMessageIndex()
+        {
+            //Todo:資料庫取得提示訊息
+            ViewBag.LeftMessage = "叮嚀提示：主動「關懷提問」防青少年遭詐騙，注意詐騙";
+            return PartialView();
+        }
+
+        /// <summary>
+        /// 右半部會員、統編、載具、愛心碼
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult RightInfo()
+        {
+            return PartialView();
+        }
+
+        /// <summary>
+        /// 右半部主要按鈕
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult RightMainBotton()
+        {
+            return PartialView();
+        }
+
+
+        public ActionResult LeftMessageBottom()
+        {
+            string message = TempData["LeftMessageBottom"] as string;
+            ViewBag.LeftMessageBottom = string.IsNullOrEmpty(message) ? "促銷提示：經財政部輔導要求，不主動列印交易明細" : message;
+            return PartialView();
+        }
+        /// <summary>
+        /// 左半部促銷提示
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult LeftPromotionBar()
+        {
+            //Todo:資料庫取得提示訊息
+            ViewBag.LeftPromotionBar = "促銷提示：經財政部輔導要求，不主動列印交易明細";
+            return PartialView();
+        }
+
+        /// <summary>
+        /// 版本資訊
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult LeftVersionInfo()
+        {
+            List<string> versions = new List<string>();
+            //取得arc版本號
+            var getARCVersion = db.CollectingBanks.Where(x=>x.DATA_TYPE== "VR").FirstOrDefault();
+            if (getARCVersion != null)
+                versions.Add(getARCVersion.DATA);
+            //悠遊卡韌體版本
+            versions.Add("悠遊卡機韌體版本=" + new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("DongleReaderVersion"));
+            //熱感機韌體版本
+            versions.Add("發票機韌體版本=" + new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("PrinterVersion"));
+            //Todo:REPORT.DEF = AAAA.CCCC
+            // 加上刷卡機版號= 20260818 (8碼)
+
+            ViewBag.LeftVersionInfo = versions;
+            return PartialView();
+        }
+
+        /// <summary>
+        /// 登入後右半部功能頁
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult RightCatalogButtonList()
+        {
+            List<BlockModels.CatalogBtnModel> catalogButton = GetButtons("");
+            return PartialView(catalogButton);
+        }
+
+        public ActionResult RightMain()
+        {
+
+            return PartialView();
+        }
+
+        /// <summary>
+        /// 提示視窗
+        /// </summary>
+        /// <param name="query"></param>
+        /// <returns></returns>
+        public ActionResult PopupConfirm(List<int> query)
+        {
+
+            return PartialView(query);
+        }
+    }
 }
-catch (Exception ex)
-{
-    MessageBox.Show("清除設定檔時發生錯誤：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-}
-```
-
-}
-
-// bat檔安全驗證方法
-private bool IsValidBatPath(string batPath)
-{
-try
-{
-if (string.IsNullOrWhiteSpace(batPath)) return false;
-
-```
-    string extension = Path.GetExtension(batPath).ToLowerInvariant();
-    if (extension != ".bat" && extension != ".cmd") return false;
-    
-    char[] invalidChars = { '|', '&', ';', '<', '>', '^' };
-    if (batPath.IndexOfAny(invalidChars) != -1) return false;
-    
-    if (!Path.IsPathRooted(batPath)) return false;
-    
-    return true;
-}
-catch
-{
-    return false;
-}
-```
-
-}
-
-// ============================================================================
-// LOG檔案範例內容
-// ============================================================================
-
-/*
-檔案位置：與EXE同一層
-檔名：20250109_HIPOS檔案比對.log
-
-內容範例：
-20250109_14:30:15 執行1.版本比對SC.Service結果:不正確 門市:2025/01/08 10:30:45/2048576 總部:2025/01/09 11:20:30/2048600
-20250109_14:30:15 執行1.版本比對SC.Web結果:正確 門市:2025/01/09 09:15:20/1536000 總部:2025/01/09 09:15:20/1536000
-20250109_14:30:15 執行1.版本比對SC.Update結果:正確 門市:2025/01/09 08:45:10/896512 總部:2025/01/09 08:45:10/896512
-20250109_14:32:20 執行2.接收HIPOS最新版本與更新
-20250109_14:38:25 執行3.清除設定檔資料
-*/
