@@ -1,19 +1,41 @@
-我幫你把兩個需求拆解實作，共動到 4 個檔案。以下每段都是可直接貼上取代的完整區塊。
+## 整體邏輯回顧
 
-## 1. `UbotNewTradeModel.cs` — 新增 Application Version 欄位
+三個動作、三個位置，分工像接力賽：
 
-電文格式在 Reserved(95碼) 前插入新欄位 Application Version(8碼)，因此 Reserved 要縮成 87 碼。
+| 步驟 | 動作 | 放在哪裡 |
+|---|---|---|
+| ① 切欄位 | 把電文字串第355~362碼切出來當版號 | `UbotNewTradeModel` 建構子 |
+| ② 轉DTO | 把版號放進對外用的回應物件 | `UbotNew.responseFromModel()` |
+| ③ 寫檔 | 決定要不要拿版號去建立/更新版本檔 | `UbotNew.settlement()` |
 
-**新增 private 欄位**（放在 `_Campaign_Discount_3` 之後）：
+①②不管什麼交易類型（刷卡、退貨、結帳...）都會執行到，但沒差，因為只是「切字串」跟「填欄位」，沒值就是空字串，不會出錯。③只有結帳流程會執行到，所以檔案不會被其他交易誤觸發寫入。
+
+以下是完整、可直接貼上取代的程式碼。
+
+---
+
+## 1. `UbotNewTradeModel.cs`
+
+找到 `Campaign_Discount_3` 附近，照下面順序放：
+
 ```csharp
+// ===== private 欄位區 =====
+private string _Campaign_Discount_3;
 /// <summary>
 /// 應用程式版號(結帳回傳) //新增
 /// </summary>
 private string _ApplicationVersion;
-```
+/// <summary>
+/// reserved
+/// </summary>
+private string _Reserved;
 
-**新增 public 屬性**（放在 `Campaign_Discount_3` 屬性之後，並把 `Reserved` 長度改為 87）：
-```csharp
+
+// ===== public 屬性區 =====
+public string Campaign_SN_3 { get => FixLeft(_Campaign_SN_3, 8); set => _Campaign_SN_3 = value; }
+public string Campaign_Result_3 { get => FixLeft(_Campaign_Result_3, 2); set => _Campaign_Result_3 = value; }
+public string Campaign_Discount_3 { get => FixLeft(_Campaign_Discount_3, 10); set => _Campaign_Discount_3 = value; }
+
 /// <summary>
 /// 應用程式版號(結帳回傳) //新增
 /// </summary>
@@ -22,24 +44,187 @@ public string ApplicationVersion { get => FixLeft(_ApplicationVersion, 8); set =
 /// <summary>
 /// reserved
 /// </summary>
-public string Reserved { get => FixLeft(_Reserved, 87); set => _Reserved = value; } // 95 -> 87
+public string Reserved { get => FixLeft(_Reserved, 87); set => _Reserved = value; }  // 原本 95，現在扣掉 ApplicationVersion 的 8 碼
+
+
+// ===== 建構子(從電文字串解析) =====
+public UbotNewTradeModel(string strTrade)
+{
+    int i = 0;
+    this.TransType = tokenize(strTrade, 2, ref i);
+    this.HostID = tokenize(strTrade, 2, ref i);
+    this.InvoiceNo = tokenize(strTrade, 6, ref i);
+    this.CardNo = tokenize(strTrade, 19, ref i);
+    this.TransAmt = tokenize(strTrade, 10, ref i);
+    this.TransDate = tokenize(strTrade, 6, ref i);
+    this.TransTime = tokenize(strTrade, 6, ref i);
+    this.ApprovalCode = tokenize(strTrade, 6, ref i);
+    this.RespCode = tokenize(strTrade, 4, ref i);
+    this.TerminalID = tokenize(strTrade, 8, ref i);
+    this.RefNo = tokenize(strTrade, 12, ref i);
+    this.InstallmentPeriod = tokenize(strTrade, 2, ref i);
+    this.DownPayment = tokenize(strTrade, 10, ref i);
+    this.InstallmentPayment = tokenize(strTrade, 10, ref i);
+    this.RedeemAmt = tokenize(strTrade, 10, ref i);
+    this.StoreID = tokenize(strTrade, 18, ref i);
+    this.StartTransType = tokenize(strTrade, 2, ref i);
+    this.TrlInqFlag = tokenize(strTrade, 1, ref i);
+    this.SHACardNo = tokenize(strTrade, 60, ref i);
+    this.MerchantID = tokenize(strTrade, 15, ref i);
+    this.POSEntryMode = tokenize(strTrade, 2, ref i);
+    this.TokenIndicator = tokenize(strTrade, 1, ref i);
+    this.ExceptionAmt = tokenize(strTrade, 10, ref i);
+    this.SubAmt = tokenize(strTrade, 10, ref i);
+    this.BatchNo = tokenize(strTrade, 6, ref i);
+    this.CUPTxnDate = tokenize(strTrade, 4, ref i);
+    this.CUPTxnTime = tokenize(strTrade, 6, ref i);
+    this.CUPSettlementDate = tokenize(strTrade, 4, ref i);
+    this.CUPTxnSeq_No = tokenize(strTrade, 6, ref i);
+    this.MerchantCode = tokenize(strTrade, 22, ref i);
+    this.SignFlag = tokenize(strTrade, 1, ref i);
+    this.RequestCampaignID = tokenize(strTrade, 3, ref i);
+    this.DiscountAmount = tokenize(strTrade, 10, ref i, "0");
+    this.Campaign_Count = tokenize(strTrade, 1, ref i);
+    this.Campaign_SN_1 = tokenize(strTrade, 8, ref i);
+    this.Campaign_Result_1 = tokenize(strTrade, 2, ref i);
+    this.Campaign_Discount_1 = tokenize(strTrade, 10, ref i);
+    this.Campaign_SN_2 = tokenize(strTrade, 8, ref i);
+    this.Campaign_Result_2 = tokenize(strTrade, 2, ref i);
+    this.Campaign_Discount_2 = tokenize(strTrade, 10, ref i);
+    this.Campaign_SN_3 = tokenize(strTrade, 8, ref i);
+    this.Campaign_Result_3 = tokenize(strTrade, 2, ref i);
+    this.Campaign_Discount_3 = tokenize(strTrade, 10, ref i);
+    this.ApplicationVersion = tokenize(strTrade, 8, ref i);   // 新增：切出版號
+    this.Reserved = tokenize(strTrade, 87, ref i);            // 原本是 95
+}
+
+
+// ===== ToStringLine(組回電文字串，給送出電文用) =====
+public String ToStringLine(Boolean BoIsLogs)
+{
+    string strCardno = this.CardNo;
+
+    if (BoIsLogs)
+    {
+        if ((strCardno.Length > 12) && (!string.IsNullOrEmpty(strCardno.Trim())))
+            strCardno = strCardno.Substring(0, 6) + "******" + strCardno.Substring(12, strCardno.Length - 12);
+    }
+    StringBuilder sbUbotTrade = new StringBuilder();
+    sbUbotTrade.Append(this.TransType);
+    sbUbotTrade.Append(this.HostID);
+    sbUbotTrade.Append(this.InvoiceNo);
+    sbUbotTrade.Append(strCardno);
+    sbUbotTrade.Append(this.TransAmt);
+    sbUbotTrade.Append(this.TransDate);
+    sbUbotTrade.Append(this.TransTime);
+    sbUbotTrade.Append(this.ApprovalCode);
+    sbUbotTrade.Append(this.RespCode);
+    sbUbotTrade.Append(this.TerminalID);
+    sbUbotTrade.Append(this.RefNo);
+    sbUbotTrade.Append(this.InstallmentPeriod);
+    sbUbotTrade.Append(this.DownPayment);
+    sbUbotTrade.Append(this.InstallmentPayment);
+    sbUbotTrade.Append(this.RedeemAmt);
+    sbUbotTrade.Append(this.StoreID);
+    sbUbotTrade.Append(this.StartTransType);
+    sbUbotTrade.Append(this.TrlInqFlag);
+    sbUbotTrade.Append(this.SHACardNo);
+    sbUbotTrade.Append(this.MerchantID);
+    sbUbotTrade.Append(this.POSEntryMode);
+    sbUbotTrade.Append(this.TokenIndicator);
+    sbUbotTrade.Append(this.ExceptionAmt);
+    sbUbotTrade.Append(this.SubAmt);
+    sbUbotTrade.Append(this.BatchNo);
+    sbUbotTrade.Append(this.CUPTxnDate);
+    sbUbotTrade.Append(this.CUPTxnTime);
+    sbUbotTrade.Append(this.CUPSettlementDate);
+    sbUbotTrade.Append(this.CUPTxnSeq_No);
+    sbUbotTrade.Append(this.MerchantCode);
+    sbUbotTrade.Append(this.SignFlag);
+    sbUbotTrade.Append(this.RequestCampaignID);
+    sbUbotTrade.Append(this.DiscountAmount);
+    sbUbotTrade.Append(this.Campaign_Count);
+    sbUbotTrade.Append(this.Campaign_SN_1);
+    sbUbotTrade.Append(this.Campaign_Result_1);
+    sbUbotTrade.Append(this.Campaign_Discount_1);
+    sbUbotTrade.Append(this.Campaign_SN_2);
+    sbUbotTrade.Append(this.Campaign_Result_2);
+    sbUbotTrade.Append(this.Campaign_Discount_2);
+    sbUbotTrade.Append(this.Campaign_SN_3);
+    sbUbotTrade.Append(this.Campaign_Result_3);
+    sbUbotTrade.Append(this.Campaign_Discount_3);
+    sbUbotTrade.Append(this.ApplicationVersion);   // 新增
+    sbUbotTrade.Append(this.Reserved);
+
+    return sbUbotTrade.ToString();
+}
 ```
 
-**建構子解析**（在 `this.Campaign_Discount_3 = tokenize(strTrade, 10, ref i);` 之後）：
+---
+
+## 2. `CreditCardResponse.cs`（你沒有貼原始碼，找到 class 定義後加這個屬性）
+
 ```csharp
-this.ApplicationVersion = tokenize(strTrade, 8, ref i);
-this.Reserved = tokenize(strTrade, 87, ref i); // 原本是 95
+/// <summary>
+/// 應用程式版號(結帳回傳) //新增
+/// </summary>
+public string ApplicationVersion { get; set; }
 ```
 
-**ToStringLine()**（在 `sbUbotTrade.Append(this.Campaign_Discount_3);` 之後）：
+---
+
+## 3. `UbotNew.cs` — responseFromModel() 完整版
+
 ```csharp
-sbUbotTrade.Append(this.ApplicationVersion);
-sbUbotTrade.Append(this.Reserved);
+private Devices.Models.CreditCardModels.CreditCardResponse responseFromModel(UbotNewTradeModel respData, string TransAmt = null)
+{
+    int intResult = 0;
+    return new Devices.Models.CreditCardModels.CreditCardResponse
+    {
+        CardType = CreditCardEnum.ParserUbot.CardType(new string(' ', 2)),
+        MerchantID = respData.MerchantID,
+        TerminalID = respData.TerminalID,
+        CardNo = respData.CardNo,
+        CUPSettlementDate = respData.CUPSettlementDate,
+        CUPTxnDate = respData.CUPTxnDate,
+        CUPTxnSeq_No = respData.CUPTxnSeq_No,
+        CUPTxnTime = respData.CUPTxnTime,
+        POSEntryMode = respData.POSEntryMode,
+        TransDateTime = parseDateTimeyyMMddHHmmss(respData.TransDate + respData.TransTime),
+        InvoiceNo = respData.InvoiceNo,
+        BatchNo = respData.BatchNo,
+        ApprovalCode = respData.ApprovalCode,
+        TransType = CreditCardEnum.ParserUbotNew.TransType(respData.TransType).ToName(),
+        RefNo = respData.RefNo,
+        StoreID = respData.StoreID,
+        Amount = amtStrToDec(TransAmt),
+        NoNeedSign = respData.SignFlag != "Y",
+        ESignUploadSucc = respData.RespCode == "0006" ? false : true,
+        EInvoiceIssuer = respData.TrlInqFlag == "Y",
+        SHACardNo = respData.SHACardNo,
+        POSDateTime = parseDateTimeyyMMddHHmmss(respData.TransDate + respData.TransTime),
+        status = statusFromRespType(CreditCardEnum.ParserUbotNew.RespCode(respData.RespCode)),
+        MerchantCode = respData.MerchantCode,
+        TransAmt = respData.TransAmt,
+        TransTime = respData.TransTime,
+        TransDate = respData.TransDate,
+        TokenIndicator = respData.TokenIndicator,
+        WalletType = "X",
+        RespCode = respData.RespCode,
+        SignFlag = respData.SignFlag,
+        E_SignatureUpload = "0",
+        HostID = respData.HostID,
+        InquiryType = respData.InstallmentPeriod,
+        Amount1 = respData.DownPayment,
+        Amount2 = respData.InstallmentPayment,
+        ARCAmt = Convert.ToInt32(amtStrToDec(respData.SubAmt)),
+        SmokeAmt = Convert.ToInt32(amtStrToDec(respData.ExceptionAmt)),
+        ApplicationVersion = respData.ApplicationVersion?.Trim()   // 新增：解析版號放進DTO
+    };
+}
 ```
 
-## 2. `UbotNew.cs` — settlement() 解析版號並寫檔
-
-`Send()` 目前已經在 `TransType=="50"` 時讀取 `OutData.txt`（你的程式碼已有這段模擬），不需再改。要改的是 `settlement()`，取得回應後解析版號並呼叫共用方法寫檔：
+## `UbotNew.cs` — settlement() 完整版
 
 ```csharp
 public Devices.Models.CreditCardModels.CreditCardResponse settlement(Devices.Models.CreditCardModels.CreditCardSettleRequest data)
@@ -63,11 +248,10 @@ public Devices.Models.CreditCardModels.CreditCardResponse settlement(Devices.Mod
         respData = Send(reqData);
         response = responseFromModel(respData);
 
-        // 解析結帳回傳的刷卡機版號(8碼)，有值才寫版本文字檔
-        string strEDCVersion = respData.ApplicationVersion?.Trim();
-        if (!string.IsNullOrEmpty(strEDCVersion))
+        // 結帳回傳有版號才寫版本文字檔，非結帳交易呼叫這裡不會走到（因為 settlement() 只有結帳流程會呼叫）
+        if (!string.IsNullOrEmpty(response.ApplicationVersion))
         {
-            new POS.Devices.DeviceSharedFunctions().CreateDeviceVersionFile("EDCVerson", strEDCVersion);
+            new POS.Devices.DeviceSharedFunctions().CreateDeviceVersionFile("EDCVersion", response.ApplicationVersion);
         }
 
         if (response.status == Devices.Models.CreditCardModels.CreditCardResponse.CreditCardStatus.Succ)
@@ -79,57 +263,100 @@ public Devices.Models.CreditCardModels.CreditCardResponse settlement(Devices.Mod
 }
 ```
 
-`DeviceSharedFunctions.CreateDeviceVersionFile` 不用改，它已經處理資料夾建立、檔案改名、`_不同版號時自動更新`的邏輯，寫出結果會是 `C:\POS\Web\Register\DeviceVersion\EDCVerson_20260818.txt`。
+---
 
-> 注意：需求文字裡檔名一開始寫 `EDCVersion_`，但第2點判斷「有無版號」時寫的是 `EDCVerson_`（少一個 i）。因為寫檔跟判斷要用同一個字串比對前綴才會生效，我統一用 **`EDCVerson`**。如果正式命名要用 `EDCVersion`，兩處（下面 SettlementAll 的判斷 + 這裡的寫檔）要一起改成一致的字串。
-
-## 3. `EDCService.cs` — SettlementAll() 依版號調整清帳順序
-
-取代 `NEWUBOT` 那個 `else if` 區塊：
+## 4. `EDCService.cs` — SettlementAll() 完整版
 
 ```csharp
-else if (edcType == EDCType.NEWUBOT)
+public CreditSettleResponse SettlementAll()
 {
-    bool hasEdcVersion = !string.IsNullOrEmpty(new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("EDCVerson"));
+    CreditSettleResponse result = new CreditSettleResponse();
+    CreditCardEnum.ActionStatus res;
+    result.Credit = true;
+    result.Ins = true;
+    result.CUP = true;
+    result.AE = true;
 
-    if (hasEdcVersion)
+    #region Settlement
+    if (edcType == EDCType.CTBC)
     {
-        // 有版號：銀聯交易→AE交易→一般交易
         generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.CUP.ToCode());
-        if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
-
-        generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.AE.ToCode());
-        if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
-
-        generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
-        if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
-    }
-    else
-    {
-        // 無版號：一般交易→銀聯交易→AE交易
-        generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
+        res = Settlement(CreditCardEnum.CtbcHostID.CREDITCARD.ToCode());
         if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
 
         generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.CUP.ToCode());
+        res = Settlement(CreditCardEnum.CtbcHostID.PERIOD.ToCode());
+        if (res != CreditCardEnum.ActionStatus.SUCC) result.Ins = false;
+
+        generateStoreID();
+        res = Settlement(CreditCardEnum.CtbcHostID.CUP.ToCode());
         if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
 
         generateStoreID();
-        res = Settlement(CreditCardEnum.UbotNewHostID.AE.ToCode());
+        res = Settlement(CreditCardEnum.CtbcHostID.AE.ToCode());
         if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
     }
+    else if (edcType == EDCType.UBOT)
+    {
+        generateStoreID();
+        res = Settlement(CreditCardEnum.UbotHostID.CREDITCARD.ToCode());
+        if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+
+        generateStoreID();
+        res = Settlement(CreditCardEnum.UbotHostID.CUP.ToCode());
+        if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+    }
+    else if (edcType == EDCType.NEWUBOT)
+    {
+        // 判斷 DeviceVersion 目錄下有沒有 EDCVersion_ 開頭的檔案，決定清帳順序
+        bool hasEdcVersion = !string.IsNullOrEmpty(new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("EDCVersion"));
+
+        if (hasEdcVersion)
+        {
+            // 有版號：銀聯交易→AE交易→一般交易
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.CUP.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.AE.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
+
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+        }
+        else
+        {
+            // 無版號：一般交易→銀聯交易→AE交易
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.CREDITCARD.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.Credit = false;
+
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.CUP.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.CUP = false;
+
+            generateStoreID();
+            res = Settlement(CreditCardEnum.UbotNewHostID.AE.ToCode());
+            if (res != CreditCardEnum.ActionStatus.SUCC) result.AE = false;
+        }
+    }
+    #endregion
+
+    return result;
 }
 ```
 
-## 4. `BlockController.cs` — LeftVersionInfo 顯示刷卡機版號
+---
 
-取代原本的 `Todo` 註解那行：
+## 5. `BlockController.cs` — LeftVersionInfo() 完整版
 
 ```csharp
+/// <summary>
+/// 版本資訊
+/// </summary>
+/// <returns></returns>
 public ActionResult LeftVersionInfo()
 {
     List<string> versions = new List<string>();
@@ -142,38 +369,17 @@ public ActionResult LeftVersionInfo()
     //熱感機韌體版本
     versions.Add("發票機韌體版本=" + new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("PrinterVersion"));
     //刷卡機版號
-    string edcVersion = new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("EDCVerson");
+    string edcVersion = new POS.Devices.DeviceSharedFunctions().GetDeviceVersion("EDCVersion");
     if (!string.IsNullOrEmpty(edcVersion))
         versions.Add("刷卡機版號=" + edcVersion);
 
     ViewBag.LeftVersionInfo = versions;
-    return PartialView(model.BackDisplayStyle);
+    return PartialView();
 }
 ```
 
-## 需要你確認/補的部分
-1. **命名前綴** `EDCVerson` vs `EDCVersion` — 上面三段程式碼要用同一個字串，選定後我可以一次改齊。
-2. 模擬測試檔 `c:\POS\Web\Register\EDC\UBNew\OutData.txt` 的內容目前是 450 碼假資料，測試時記得在第 355~362 碼(從0算)補上 8 碼版號字串，不然 `ApplicationVersion` 會解析成空白，不會觸發寫檔。
-**1. Send() 註解區塊 — 對的,那確實是正式流程**
+---
 
-拿掉註解後跑的邏輯是:
-1. 把電文字串 (`sendData.ToStringLine(false)`) 寫進 `InData.dat`
-2. 刪除舊的 `OutData.dat`
-3. 執行 `ECRTool.exe`(驅動刷卡機硬體的外部程式)
-4. 輪詢等待 `OutData.dat` 出現(最多 timeout 秒)
-5. 讀到檔案後 `new UbotNewTradeModel(File.ReadAllText(outFilename))` 解析回傳電文
-6. TransType=50 時額外把 process kill 掉
+## 測試前提醒
 
-這段本身不用改。因為第 5 步的 `UbotNewTradeModel` 建構子已經被我加了 `ApplicationVersion` 的 tokenize 解析,所以只要正式環境跑這段拿到真實的 `OutData.dat`,`respData.ApplicationVersion` 自然就會有值,不需要在 Send() 裡額外處理版號。
-
-現在你看到的模擬區塊(`if (sendData.TransType == "60") ...`)只是開發測試用,之後接正式環境時,把模擬區塊拿掉、註解區塊打開即可,兩邊都吃同一個 `UbotNewTradeModel` 建構子,解析邏輯是共用的。
-
-**2. 為什麼版號解析寫在 settlement(),不是 responseFromModel()**
-
-`responseFromModel()` 的職責是把 `UbotNewTradeModel`(原始電文物件)轉成 `CreditCardResponse`(對外統一的交易結果 DTO)。這個方法是**共用**的 —— sale、refund、reprint、changeKey、signSale、signRefund、settlement 全部都會呼叫它。
-
-但「應用程式版號」這個欄位,依需求文件寫的是「**結帳回傳**」專屬欄位,只有 TransType=50(結帳)的回應電文才有意義,其他交易類型的電文那個位置根本不代表版號。如果把「解析版號+寫檔」這個動作放進 `responseFromModel()`,會變成:
-- 每次刷卡(sale)、退刷(refund)、重印(reprint)...等操作都會跑一次這段邏輯,浪費且語意錯誤
-- `CreditCardResponse` 這個 DTO 也沒有 `ApplicationVersion` 屬性,要嘛幫它加一個大家都用不到的欄位,要嘛就要在裡面寫死判斷「是不是50才處理」,把不相關的檔案 I/O 邏輯硬塞進一個單純做欄位轉換的方法裡
-
-而 `respData`(也就是 `UbotNewTradeModel`)在 `settlement()` 裡呼叫完 `Send()` 就已經拿到了,`respData.ApplicationVersion` 直接讀得到,不需要繞過 `responseFromModel()` 再轉一手。所以邏輯上這是「結帳這個動作的專屬副作用」,放在 `settlement()` 裡面,跟呼叫 `responseFromModel()` 平行處理,是比較乾淨的做法 —— `responseFromModel()` 維持單純的欄位對應,不混入寫檔這種 I/O 副作用。
+模擬檔 `c:\POS\Web\Register\EDC\UBNew\OutData.txt`（`Send()` 裡 `TransType=="50"` 讀的那個檔案）內容目前是照舊格式的 450 碼字串，要記得在**第 355~362 碼**(從 0 算，也就是字串中第 356 到第 363 個字元)補上 8 碼版號，例如 `20260818`，其餘欄位維持不動，這樣 `ApplicationVersion` 才解析得到值，觸發寫檔跟畫面顯示的邏輯才測得出來。
